@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 4%;
+    --foreground: 210 20% 90%;
+
+    --card: 220 15% 8%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 220 15% 8%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 116 39% 22%;
+    --primary-foreground: 120 20% 95%;
+
+    --secondary: 220 15% 12%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 220 12% 14%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 18 90% 59%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 18 82% 34%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 18 90% 59%;
+
+    --border: 220 12% 16%;
+    --input: 220 12% 16%;
+    --ring: 116 39% 30%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 15% 6%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 116 39% 22%;
+    --sidebar-primary-foreground: 120 20% 95%;
+    --sidebar-accent: 220 12% 14%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 220 12% 16%;
+    --sidebar-ring: 116 39% 30%;
+
+    --trust-green: 116 39% 22%;
+    --trust-green-glow: 116 50% 35%;
+    --risk-red: 18 82% 34%;
+    --highlight-orange: 18 90% 59%;
+
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-gradient-green {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(116, 45%, 55%), hsl(116, 40%, 38%));
+  }
+
+  .text-gradient-orange {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(18, 90%, 59%), hsl(30, 95%, 65%));
+  }
+
+  .bg-gradient-hero {
+    background: radial-gradient(ellipse at 30% 20%, hsl(116, 39%, 10%, 0.4) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, hsl(18, 90%, 59%, 0.08) 0%, transparent 50%),
+                hsl(220, 20%, 4%);
+  }
+
+  .bg-gradient-card {
+    background: linear-gradient(145deg, hsl(220, 15%, 10%), hsl(220, 15%, 7%));
+  }
+
+  .glow-green {
+    box-shadow: 0 0 40px hsl(116, 50%, 25%, 0.15), 0 0 80px hsl(116, 39%, 22%, 0.08);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 30px hsl(18, 90%, 59%, 0.2);
+  }
+
+  .border-glow-green {
+    border-color: hsl(116, 39%, 25%, 0.3);
+  }
+
+  .section-padding {
+    @apply py-20 md:py-28 lg:py-32;
+  }
+
+  .grid-bg {
+    background-image: 
+      linear-gradient(hsl(220, 12%, 12%, 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(220, 12%, 12%, 0.5) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+}
