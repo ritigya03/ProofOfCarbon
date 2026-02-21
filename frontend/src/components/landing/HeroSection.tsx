@@ -19,10 +19,10 @@ const HeroSection = () => (
     <div className="absolute inset-0 grid-bg opacity-30" />
 
     {/* Central green radial glow */}
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full opacity-30"
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] rounded-full opacity-30"
       style={{ background: "radial-gradient(circle, hsl(116 50% 30% / 0.7) 0%, hsl(116 39% 22% / 0.25) 40%, transparent 70%)" }}
     />
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-35 animate-pulse-glow"
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full opacity-35 animate-pulse-glow"
       style={{ background: "radial-gradient(circle, hsl(116 50% 40% / 0.5) 0%, transparent 70%)" }}
     />
 
