@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "deploy:amoy": "hardhat ignition deploy ignition/modules/VerificationRegistry.ts --network amoy",
+    "deploy:local": "hardhat ignition deploy ignition/modules/VerificationRegistry.ts --network hardhatMainnet",
+    "save-deployed": "node scripts/save-deployed.mjs",
+    "test": "hardhat test"
   },
   "keywords": [],
   "author": "",

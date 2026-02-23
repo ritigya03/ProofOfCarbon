@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-710092a8b1867970bab50053b01febc18a45d4c2",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/VerificationRegistry.sol": "project/contracts/VerificationRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/VerificationRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.28;\r\n\r\n/**\r\n * @title VerificationRegistry\r\n * @notice On-chain audit log for ProofOfCarbon AI verification results.\r\n *         Each record stores a project's trust score, risk level, and an\r\n *         IPFS hash pointing to the full AI-generated analysis report.\r\n * @dev Deployed on Polygon Amoy testnet.\r\n */\r\ncontract VerificationRegistry {\r\n\r\n    // ── Enums ────────────────────────────────────────────────────────────────\r\n\r\n    enum RiskLevel { LOW, MEDIUM, HIGH, CRITICAL }\r\n\r\n    // ── Structs ──────────────────────────────────────────────────────────────\r\n\r\n    struct VerificationRecord {\r\n        uint256 id;             // Auto-incremented record ID\r\n        string  projectName;    // Name of the carbon credit project\r\n        string  companyName;    // Submitting company / entity\r\n        uint8   trustScore;     // 0–100 AI-generated trust score\r\n        RiskLevel riskLevel;    // LOW / MEDIUM / HIGH / CRITICAL\r\n        string  ipfsHash;       // IPFS CID of full analysis JSON\r\n        address verifier;       // Address that submitted the record\r\n        uint256 timestamp;      // Block timestamp of submission\r\n    }\r\n\r\n    // ── State ────────────────────────────────────────────────────────────────\r\n\r\n    uint256 private _nextId;\r\n\r\n    /// @notice All verification records, indexed by ID (0-based)\r\n    mapping(uint256 => VerificationRecord) public records;\r\n\r\n    /// @notice Total number of records stored\r\n    uint256 public totalRecords;\r\n\r\n    // ── Events ───────────────────────────────────────────────────────────────\r\n\r\n    event VerificationLogged(\r\n        uint256 indexed id,\r\n        string  projectName,\r\n        string  companyName,\r\n        uint8   trustScore,\r\n        RiskLevel riskLevel,\r\n        string  ipfsHash,\r\n        address indexed verifier,\r\n        uint256 timestamp\r\n    );\r\n\r\n    // ── Write ─────────────────────────────────────────────────────────────────\r\n\r\n    /**\r\n     * @notice Log a new verification result on-chain.\r\n     * @param projectName  Name of the project being verified.\r\n     * @param companyName  Name of the company that submitted the claim.\r\n     * @param trustScore   AI trust score (0–100). Must be ≤ 100.\r\n     * @param riskLevel    Risk classification (0=LOW, 1=MEDIUM, 2=HIGH, 3=CRITICAL).\r\n     * @param ipfsHash     IPFS CID of the full analysis JSON report.\r\n     * @return id          The ID assigned to this record.\r\n     */\r\n    function logVerification(\r\n        string  calldata projectName,\r\n        string  calldata companyName,\r\n        uint8            trustScore,\r\n        RiskLevel        riskLevel,\r\n        string  calldata ipfsHash\r\n    ) external returns (uint256 id) {\r\n        require(trustScore <= 100, \"Trust score must be 0-100\");\r\n        require(bytes(projectName).length > 0, \"Project name required\");\r\n\r\n        id = _nextId++;\r\n\r\n        records[id] = VerificationRecord({\r\n            id:          id,\r\n            projectName: projectName,\r\n            companyName: companyName,\r\n            trustScore:  trustScore,\r\n            riskLevel:   riskLevel,\r\n            ipfsHash:    ipfsHash,\r\n            verifier:    msg.sender,\r\n            timestamp:   block.timestamp\r\n        });\r\n\r\n        totalRecords++;\r\n\r\n        emit VerificationLogged(\r\n            id,\r\n            projectName,\r\n            companyName,\r\n            trustScore,\r\n            riskLevel,\r\n            ipfsHash,\r\n            msg.sender,\r\n            block.timestamp\r\n        );\r\n    }\r\n\r\n    // ── Read ──────────────────────────────────────────────────────────────────\r\n\r\n    /**\r\n     * @notice Fetch a single verification record by its ID.\r\n     * @param id The record ID to retrieve.\r\n     */\r\n    function getRecord(uint256 id)\r\n        external\r\n        view\r\n        returns (VerificationRecord memory)\r\n    {\r\n        require(id < totalRecords, \"Record does not exist\");\r\n        return records[id];\r\n    }\r\n\r\n    /**\r\n     * @notice Fetch all verification records (paginated).\r\n     * @param offset  Starting index.\r\n     * @param limit   Maximum number of records to return.\r\n     * @return page   Array of VerificationRecord structs.\r\n     */\r\n    function getRecords(uint256 offset, uint256 limit)\r\n        external\r\n        view\r\n        returns (VerificationRecord[] memory page)\r\n    {\r\n        if (offset >= totalRecords) return page;\r\n\r\n        uint256 end = offset + limit;\r\n        if (end > totalRecords) end = totalRecords;\r\n\r\n        page = new VerificationRecord[](end - offset);\r\n        for (uint256 i = offset; i < end; i++) {\r\n            page[i - offset] = records[i];\r\n        }\r\n    }\r\n\r\n    /**\r\n     * @notice Fetch all records submitted by a specific address.\r\n     * @param verifier  The address to filter by.\r\n     */\r\n    function getRecordsByVerifier(address verifier)\r\n        external\r\n        view\r\n        returns (VerificationRecord[] memory)\r\n    {\r\n        uint256 count = 0;\r\n        for (uint256 i = 0; i < totalRecords; i++) {\r\n            if (records[i].verifier == verifier) count++;\r\n        }\r\n\r\n        VerificationRecord[] memory result = new VerificationRecord[](count);\r\n        uint256 idx = 0;\r\n        for (uint256 i = 0; i < totalRecords; i++) {\r\n            if (records[i].verifier == verifier) {\r\n                result[idx++] = records[i];\r\n            }\r\n        }\r\n        return result;\r\n    }\r\n}\r\n"
+      }
+    }
+  }
+}
