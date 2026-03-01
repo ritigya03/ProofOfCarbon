@@ -6,3 +6,6 @@ __pycache__/
 venv/
 data/
 .data/
+# GEE service account credentials — never commit
+gee-service-account-key.json
+*-service-account-key.json

@@ -17,3 +17,5 @@ psycopg2-binary
 pgvector
 sqlalchemy
 numpy
+# Satellite evidence — Google Earth Engine Python API (MODIS NDVI)
+earthengine-api>=0.1.390
