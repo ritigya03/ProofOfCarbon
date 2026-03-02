@@ -14,27 +14,30 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """
 You are a forensic carbon credit fraud analyst specialising in Indian forestry projects.
 
-You will receive the combined output from two prior analysis stages:
-1. Spatial analysis — how much of the claimed area is actually forest
-2. Satellite NDVI analysis — what the satellite data shows about vegetation
+You will receive the combined output from prior analysis stages:
+1. Spatial analysis — forest cover overlap
+2. Satellite NDVI analysis — vegetation signals
+3. Baseline analysis — additionality values
+4. PROJECT_TYPE — ARR or REDD+
 
-Your job is to identify fraud signals, inconsistencies, and red flags ACROSS both data sources.
+Your job is to identify fraud signals ACROSS all data sources, adjusted by project context.
 
-Known fraud patterns in Indian carbon markets:
-- PHANTOM FOREST: Claimed area has very low NDVI (<0.2) but company claims dense forest
-- PROTECTED AREA LAUNDERING: Claiming credits for land already under legal protection
-- AREA INFLATION: Claimed hectares far exceed verified hectares (>2x)
-- REGISTRY DOUBLE-COUNT: Same area registered with multiple carbon registries
-- BASELINE MANIPULATION: Claiming forest that existed long before the project started
-- SIGNAL CONTRADICTION: Spatial data says forest exists but NDVI says it doesn't (or vice versa)
-- ROUND NUMBER ANOMALY: Suspiciously exact figures (exactly 1000 ha, exactly 50% overlap) suggest fabrication
-- ADMINISTRATIVE MISMATCH: Claimed state/district doesn't match the actual coordinates
+FRAUD PATTERNS BY PROJECT TYPE:
 
-For each fraud pattern, assign a severity:
-- CONFIRMED: Clear evidence in the data
-- SUSPECTED: Strong indicators but not conclusive  
-- POSSIBLE: Minor signals worth flagging
-- CLEAR: No evidence of this pattern
+- PHANTOM FOREST:
+    - REDD+: Claimed area has very low NDVI (<0.3) but company claims dense forest. (HIGH SUSPICION)
+    - ARR: Low NDVI at start is NORMAL. If NDVI is very HIGH (>0.7) at start, it might be "Baseline Inflation" (claiming existing forest as new). (SUSPECTED)
+
+- AREA INFLATION:
+    - REDD+: Claimed hectares far exceed verified forest hectares (>2x). (HIGH SUSPICION)
+    - ARR: Compare claimed KMZ area (`claimed_hectares`) vs company text claim (`text_claimed_ha`). 
+    - **CRITICAL ARR RULE**: Do NOT compare against `verified_hectares` (forest cover) for ARR, as 0% forest is normal at start. High mismatch between KMZ and text claim is the only inflation signal for ARR.
+
+- SIGNAL CONTRADICTION:
+    - REDD+: Spatial data says 90% forest but NDVI says 0.2 (ARID). (CONFIRMED FRAUD)
+    - ARR: NDVI trending DOWN but company claims successful growth. (CONFIRMED FRAUD)
+
+- PROTECTED AREA LAUNDERING: Claiming credits for land already under legal protection (Forest Dept land, Sanctuaries). (CRITICAL)
 
 Return ONLY a valid JSON object:
 {
@@ -43,21 +46,18 @@ Return ONLY a valid JSON object:
     "area_inflation": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>",
     "signal_contradiction": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>",
     "protected_area_laundering": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>",
-    "round_number_anomaly": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>",
-    "administrative_mismatch": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>"
+    "baseline_manipulation": "<CONFIRMED|SUSPECTED|POSSIBLE|CLEAR>"
   },
   "anomaly_score": <integer 0-100, where 100 = highly anomalous>,
   "fraud_flags": ["<specific flag 1>", "<specific flag 2>"],
   "fraud_risk_level": "<LOW|MEDIUM|HIGH|CRITICAL>",
-  "fraud_summary": "<2-3 sentences explaining the key fraud signals found or absence thereof>"
+  "fraud_summary": "<2-3 sentences explaining findings based on project type context>"
 }
 
-anomaly_score guide:
-- 0-20: Clean, consistent signals — credible claim
-- 21-40: Minor inconsistencies — monitor but not disqualifying  
-- 41-60: Multiple suspicious signals — enhanced scrutiny required
-- 61-80: Strong fraud indicators — likely fraudulent
-- 81-100: Near-certain fraud — recommend rejection
+Anomaly Score Guidance:
+- 0-20: Clean, consistent signals.
+- 41-60: Suspicious signals (e.g., ARR with high starting NDVI, or REDD+ with low overlap).
+- 81-100: Near-certain fraud.
 """
 
 
@@ -87,6 +87,7 @@ class FraudDetectionAgent(BaseAgent):
 
         # Pull the fields most relevant to fraud detection
         fraud_context = {
+            "project_type": combined_data.get("project_type"),
             # Spatial signals
             "claimed_hectares": combined_data.get("claimed_hectares"),
             "verified_hectares": combined_data.get("verified_hectares"),
@@ -102,11 +103,18 @@ class FraudDetectionAgent(BaseAgent):
             "vegetation_class": combined_data.get("vegetation_class"),
             "satellite_risk_level": combined_data.get("satellite_risk_level"),
             "satellite_flags": combined_data.get("satellite_flags", []),
+            # Baseline signals
+            "additionality_score": combined_data.get("additionality_score"),
+            "deforestation_pressure": combined_data.get("deforestation_pressure"),
+            "baseline_summary": combined_data.get("baseline_summary"),
             # Company claim
             "company_name": combined_data.get("company_name"),
             "project_name": combined_data.get("project_name"),
             "state": combined_data.get("state"),
             "forest_type": combined_data.get("forest_type"),
+            # Area mismatch (text description vs KMZ file)
+            "text_claimed_ha": combined_data.get("text_claimed_ha"),
+            "area_mismatch_pct": combined_data.get("area_mismatch_pct"),
         }
 
         prompt = self._build_prompt(

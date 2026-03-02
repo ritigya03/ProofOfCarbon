@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.schemas import AnalyzeResponse, HealthResponse
 from agents.project_analysis import ProjectAnalysisAgent
 from agents.satellite_evidence import SatelliteEvidenceAgent
+from agents.historical_baseline import HistoricalBaselineAgent
 from agents.fraud_detection import FraudDetectionAgent
 from agents.verifier import VerifierAgent
 
@@ -43,19 +44,22 @@ app.add_middleware(
 )
 
 # Instantiated once at startup — reference data loaded into memory here
-project_agent: ProjectAnalysisAgent | None = None
+project_agent:   ProjectAnalysisAgent   | None = None
 satellite_agent: SatelliteEvidenceAgent | None = None
-fraud_agent: FraudDetectionAgent | None = None
-verifier_agent: VerifierAgent | None = None
+baseline_agent:  HistoricalBaselineAgent| None = None
+fraud_agent:     FraudDetectionAgent    | None = None
+verifier_agent:  VerifierAgent          | None = None
 
 
 @app.on_event("startup")
 async def startup():
-    global project_agent, satellite_agent, fraud_agent, verifier_agent
+    global project_agent, satellite_agent, baseline_agent, fraud_agent, verifier_agent
     logger.info("Initializing ProjectAnalysisAgent...")
     project_agent = ProjectAnalysisAgent()
     logger.info("Initializing SatelliteEvidenceAgent...")
     satellite_agent = SatelliteEvidenceAgent()
+    logger.info("Initializing HistoricalBaselineAgent...")
+    baseline_agent = HistoricalBaselineAgent()
     logger.info("Initializing FraudDetectionAgent...")
     fraud_agent = FraudDetectionAgent()
     logger.info("Initializing VerifierAgent...")
@@ -79,12 +83,13 @@ async def analyze(
     ),
 ):
     """
-    Analyze a carbon credit claim through a 4-stage agent pipeline.
+    Analyze a carbon credit claim through a 5-stage agent pipeline.
 
-    Stage 1 — ProjectAnalysisAgent:  spatial overlap vs verified India forest data
-    Stage 2 — SatelliteEvidenceAgent: NDVI vegetation check via MODIS
-    Stage 3 — FraudDetectionAgent:   cross-signal fraud pattern detection
-    Stage 4 — VerifierAgent:         final verdict + recommendation
+    Stage 1   — ProjectAnalysisAgent:    spatial overlap vs verified India forest data
+    Stage 2   — SatelliteEvidenceAgent:  NDVI vegetation check via MODIS
+    Stage 2.5 — HistoricalBaselineAgent: additionality & deforestation baseline
+    Stage 3   — FraudDetectionAgent:     cross-signal fraud pattern detection
+    Stage 4   — VerifierAgent:           final verdict + recommendation
 
     Stages 2-4 are non-fatal — if one fails, the pipeline continues with what it has.
     """
@@ -132,6 +137,35 @@ async def analyze(
                 ]
             except Exception as e:
                 logger.warning(f"SatelliteEvidenceAgent failed (non-fatal): {e}")
+
+        # ── Stage 2.5: Historical Baseline + Additionality (non-fatal) ─────────
+        logger.info("--- Stage 2.5: HistoricalBaselineAgent ---")
+        if baseline_agent:
+            try:
+                state       = merged.get("state") or "Unknown"
+                forest_type = merged.get("forest_type") or "dense"
+                claimed_ha  = float(merged.get("claimed_hectares", 100))
+
+                baseline_result = baseline_agent.run(
+                    state=state,
+                    forest_type=forest_type,
+                    claimed_ha=claimed_ha,
+                    company_text_claim=company_claim,
+                    prior_results=merged,
+                )
+                merged.update(baseline_result)
+
+                # Apply baseline trust modifier
+                modifier = float(baseline_result.get("baseline_trust_modifier", 0))
+                merged["trust_score"] = max(0.0, min(100.0, float(merged.get("trust_score", 50)) + modifier))
+
+                # Merge additionality flags into all_flags
+                add_flags = baseline_result.get("additionality_flags", [])
+                merged["all_flags"] = merged.get("all_flags", []) + [
+                    f for f in add_flags if f not in merged.get("all_flags", [])
+                ]
+            except Exception as e:
+                logger.warning(f"HistoricalBaselineAgent failed (non-fatal): {e}")
 
         # ── Stage 3: Fraud detection (non-fatal) ──────────────────────────────
         logger.info("--- Stage 3: FraudDetectionAgent ---")

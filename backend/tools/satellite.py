@@ -4,26 +4,54 @@ tools/satellite.py — Fetch NDVI time-series for a bounding box.
 Primary: NASA MODIS Terra (MOD13Q1) via Google Earth Engine Python API.
 Fallback: Deterministic mock seeded from the centroid lat/lon so results
            are reproducible per location without any API credentials.
+
+NDVI thresholds and time-window settings are loaded from:
+  data/config/satellite_thresholds.json
 """
 
+import json
 import logging
 import math
 import os
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+MODIS_COLLECTION = "MODIS/061/MOD13Q1"  # 16-day NDVI composites, 250 m (v061 — current)
 
-MODIS_COLLECTION = "MODIS/061/MOD13Q1"   # 16-day NDVI composites, 250 m (v061 — current)
-CURRENT_YEARS = 3      # how many years = "current" period
-HISTORICAL_YEARS = 3   # how many years before that = "historical" baseline
+# ── Load thresholds from JSON config ──────────────────────────────────────────
 
-# Thresholds for flagging
-NDVI_DENSE_FOREST = 0.50
-NDVI_DEGRADED     = 0.30
-NDVI_BARE         = 0.10
-TREND_DROP_PCT    = 10.0   # ≥10 % decline → DECREASING flag
+_THIS_DIR       = Path(__file__).parent.parent   # backend/
+_THRESHOLDS_JSON = Path(os.getenv(
+    "SATELLITE_THRESHOLDS_JSON",
+    str(_THIS_DIR / "data" / "config" / "satellite_thresholds.json")
+))
+
+
+def _load_thresholds() -> dict:
+    if not _THRESHOLDS_JSON.exists():
+        raise FileNotFoundError(
+            f"Satellite thresholds JSON not found at: {_THRESHOLDS_JSON}\n"
+            f"  Expected: data/config/satellite_thresholds.json\n"
+            f"  Override path with env var SATELLITE_THRESHOLDS_JSON"
+        )
+    with open(_THRESHOLDS_JSON, encoding="utf-8") as f:
+        cfg = json.load(f)
+    logger.info(f"[satellite] Loaded thresholds from {_THRESHOLDS_JSON.name}")
+    return cfg
+
+
+# Loaded once at module import
+THRESHOLDS = _load_thresholds()
+
+# Convenience aliases (keeps the rest of the code readable)
+NDVI_DENSE_FOREST = float(THRESHOLDS["ndvi_dense_forest"])
+NDVI_DEGRADED     = float(THRESHOLDS["ndvi_degraded"])
+NDVI_BARE         = float(THRESHOLDS["ndvi_bare"])
+TREND_DROP_PCT    = float(THRESHOLDS["trend_drop_pct"])
+CURRENT_YEARS     = int(THRESHOLDS["current_years"])
+HISTORICAL_YEARS  = int(THRESHOLDS["historical_years"])
 
 
 # ── GEE fetch ────────────────────────────────────────────────────────────────
@@ -104,12 +132,8 @@ def _mock_ndvi(bbox: dict) -> dict:
     lat  = (bbox["min_lat"] + bbox["max_lat"]) / 2
     lon  = (bbox["min_lon"] + bbox["max_lon"]) / 2
 
-    # Seed a simple deterministic value from lat/lon
     seed = math.sin(lat * 7.3 + lon * 3.1) * 0.5 + 0.5   # 0-1
-
-    # Map seed into realistic NDVI band for India's forests (0.25 – 0.78)
     ndvi_current    = round(0.25 + seed * 0.53, 3)
-    # Historical slightly lower to simulate very slight recovery trend
     ndvi_historical = round(ndvi_current - 0.02 + (math.cos(lat) * 0.01), 3)
     ndvi_historical = max(0.05, min(0.95, ndvi_historical))
 
@@ -172,36 +196,37 @@ def _build_flags(ndvi_current: float, trend: str, change_pct: float) -> list[str
 
 def fetch_ndvi_for_bbox(bbox: dict) -> dict:
     """
-    Main entry point.  Returns an NDVI analysis dict for the given bbox.
+    Main entry point. Returns an NDVI analysis dict for the given bbox.
 
     Tries GEE (real satellite data) first; falls back to deterministic mock
     if GEE credentials are unavailable or the request fails.
-
-    Args:
-        bbox: {"min_lon", "min_lat", "max_lon", "max_lat"}
-
-    Returns:
-        {
-            "ndvi_current_mean":    float,   # mean NDVI, last 3 years
-            "ndvi_historical_mean": float,   # mean NDVI, 3-6 years ago
-            "ndvi_trend":           str,     # INCREASING | STABLE | DECREASING
-            "ndvi_anomaly_score":   float,   # % change vs historical
-            "pixel_count":          int,     # ~250 m pixels sampled
-            "data_source":          str,     # MODIS_MOD13Q1 | MOCK
-            "flags":                list[str]
-        }
     """
     gee_key = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
+    service_account = os.getenv("GEE_SERVICE_ACCOUNT_EMAIL")
 
-    if gee_key:
-        logger.info("[satellite] GEE credentials found — attempting real MODIS fetch")
+    if gee_key and service_account:
+        logger.info(f"[satellite] GEE credentials found for {service_account}. Attempting real MODIS fetch...")
         try:
             import ee
-            import json
 
-            service_account = os.getenv("GEE_SERVICE_ACCOUNT_EMAIL", "")
-            credentials = ee.ServiceAccountCredentials(service_account, gee_key)
-            ee.Initialize(credentials)
+            # Resolve key path
+            key_path = Path(gee_key)
+            if not key_path.is_absolute():
+                # If backend/tools/satellite.py, .parent.parent is backend/
+                key_path = Path(__file__).parent.parent / gee_key
+            
+            logger.info(f"[satellite] Resolved GEE key path: {key_path}")
+
+            if key_path.exists():
+                logger.info(f"[satellite] GEE key file exists. Initializing with ServiceAccountCredentials...")
+                credentials = ee.ServiceAccountCredentials(service_account, str(key_path))
+                ee.Initialize(credentials)
+                logger.info("[satellite] GEE Initialization SUCCESS")
+            else:
+                logger.warning(f"[satellite] GEE key file NOT FOUND at {key_path}. Trying raw string fallback...")
+                credentials = ee.ServiceAccountCredentials(service_account, gee_key)
+                ee.Initialize(credentials)
+                logger.info("[satellite] GEE Initialization SUCCESS (raw string)")
 
             ndvi_current    = _fetch_modis_ndvi(bbox, years=CURRENT_YEARS,    offset_years=0)
             ndvi_historical = _fetch_modis_ndvi(bbox, years=HISTORICAL_YEARS, offset_years=CURRENT_YEARS)
@@ -219,8 +244,8 @@ def fetch_ndvi_for_bbox(bbox: dict) -> dict:
                 flags = _build_flags(ndvi_current, trend, change_pct)
 
                 logger.info(
-                    f"[satellite] GEE fetch OK — current={ndvi_current}, "
-                    f"historical={ndvi_historical}, trend={trend}"
+                    f"[satellite] GEE fetch SUCCESS — source: {MODIS_COLLECTION}, "
+                    f"current={ndvi_current}, trend={trend}"
                 )
                 return {
                     "ndvi_current_mean":    ndvi_current,
@@ -228,12 +253,16 @@ def fetch_ndvi_for_bbox(bbox: dict) -> dict:
                     "ndvi_trend":           trend,
                     "ndvi_anomaly_score":   round(change_pct, 2),
                     "pixel_count":          _pixel_count_estimate(bbox),
-                    "data_source":          "MODIS_MOD13Q1",
+                    "data_source":          MODIS_COLLECTION,
                     "flags":                flags,
                 }
+            else:
+                logger.warning("[satellite] GEE returned empty NDVI data for this bbox/time-window")
 
         except Exception as exc:
-            logger.warning(f"[satellite] GEE pipeline failed, using mock: {exc}")
+            logger.warning(f"[satellite] GEE pipeline error: {exc}")
 
-    logger.info("[satellite] Using deterministic mock NDVI (no GEE credentials)")
+    # Fallback to mock if GEE is not configured or failed
+    reason = "no GEE credentials" if not gee_key else "fetch failed or empty"
+    logger.info(f"[satellite] Using deterministic mock NDVI ({reason})")
     return _mock_ndvi(bbox)

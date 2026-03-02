@@ -16,6 +16,16 @@ class AnalyzeResponse(BaseModel):
     overlap_percent: float
     protected_area_overlap_ha: float = 0.0
 
+    # ── Bounding box — used by the frontend satellite map ─────────────────────
+    bbox: Optional[dict] = None           # {min_lon, min_lat, max_lon, max_lat}
+
+    # ── Area mismatch (text description vs KMZ measurement) ──────────────────
+    text_claimed_ha: Optional[float] = None    # ha extracted from company text
+    area_mismatch_pct: Optional[float] = None  # % difference vs KMZ area
+
+    # ── Satellite source label (shown in the NDVI card badge) ────────────────
+    ndvi_data_source: Optional[str] = None
+
     # ── Satellite fields (from SatelliteEvidenceAgent) ────────────────────────
     ndvi_current_mean: Optional[float] = None
     ndvi_historical_mean: Optional[float] = None
@@ -26,6 +36,19 @@ class AnalyzeResponse(BaseModel):
     satellite_trust_modifier: Optional[float] = None
     satellite_flags: list[str] = []
     satellite_summary: Optional[str] = None
+
+    # ── Historical Baseline fields (from HistoricalBaselineAgent) ────────────
+    additionality_verdict: Optional[str] = None    # STRONG / MODERATE / WEAK / NEGLIGIBLE
+    baseline_risk_level: Optional[str] = None      # LOW / MEDIUM / HIGH / CRITICAL
+    baseline_trust_modifier: Optional[float] = None
+    additionality_score: Optional[float] = None
+    deforestation_pressure: Optional[str] = None   # LOW / MEDIUM / HIGH / CRITICAL
+    counterfactual_loss_ha: Optional[float] = None
+    carbon_at_risk_tonnes_co2e: Optional[float] = None
+    counterfactual_assessment: Optional[str] = None
+    permanence_assessment: Optional[str] = None
+    additionality_flags: list[str] = []
+    baseline_summary: Optional[str] = None
 
     # ── Fraud detection fields (from FraudDetectionAgent) ────────────────────
     anomaly_score: Optional[float] = None

@@ -1,9 +1,12 @@
 import { motion } from "framer-motion";
-import { ExternalLink, ShieldCheck, AlertTriangle, Brain, Satellite, SearchCheck, MapPin, TreePine } from "lucide-react";
+import { ExternalLink, ShieldCheck, AlertTriangle, Brain, Satellite, SearchCheck, MapPin, TreePine, Map, BarChart3 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { useLocation, Link } from "react-router-dom";
+
+// Lazy-load the map so Leaflet only initialises client-side
+const SatelliteMap = lazy(() => import("@/components/SatelliteMap"));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -79,6 +82,9 @@ const Results = () => {
   const projectName = apiResult?.project_name ?? "Unknown Project";
   const state       = apiResult?.state ?? "";
   const forestType  = apiResult?.forest_type ?? "";
+  const bbox        = apiResult?.bbox as { min_lon: number; min_lat: number; max_lon: number; max_lat: number } | undefined;
+  const areaMismatchPct = apiResult?.area_mismatch_pct as number | undefined;
+  const textClaimedHa   = apiResult?.text_claimed_ha as number | undefined;
 
   // ── Stage 2: Satellite ────────────────────────────────────────────────────
   const ndviCurrent    = apiResult?.ndvi_current_mean;
@@ -119,6 +125,19 @@ const Results = () => {
         `Vegetation: ${vegClass?.replace(/_/g, " ")}`,
         `Trend: ${ndviTrend}`,
         `Trust modifier: ${(satModifier ?? 0) > 0 ? "+" : ""}${satModifier}`,
+      ] : [],
+    },
+    {
+      icon: BarChart3,
+      name: "Historical Baseline Agent",
+      summary: apiResult?.baseline_summary || "Baseline analysis complete.",
+      score: apiResult?.additionality_score != null
+        ? Math.round(apiResult.additionality_score)
+        : null,
+      detail: apiResult ? [
+        `Verdict: ${apiResult.additionality_verdict}`,
+        `Pressure: ${apiResult.deforestation_pressure}`,
+        `Carbon at risk: ${((apiResult.carbon_at_risk_tonnes_co2e ?? 0) / 1000).toFixed(1)}k tCO₂e`,
       ] : [],
     },
     {
@@ -210,6 +229,68 @@ const Results = () => {
                 </div>
               ))}
             </div>
+          )}
+
+          {/* ── Satellite Map ─────────────────────────────────────────────── */}
+          {bbox && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="mt-6 rounded-xl border border-border bg-gradient-card overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <Map className="h-5 w-5 text-trust-green-glow" />
+                  <h3 className="font-semibold text-sm">Claimed Area — Satellite View</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-trust-green-glow/40 text-trust-green-glow bg-trust-green-glow/10">
+                    Live · ESRI
+                  </span>
+                  {areaMismatchPct !== undefined && areaMismatchPct > 20 && (
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      areaMismatchPct > 200
+                        ? "border-red-500/40 text-red-400 bg-red-500/10"
+                        : areaMismatchPct > 50
+                        ? "border-orange-500/40 text-orange-400 bg-orange-500/10"
+                        : "border-yellow-500/40 text-yellow-400 bg-yellow-500/10"
+                    }`}>
+                      ⚠ Area mismatch {areaMismatchPct.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Area mismatch explanation banner */}
+              {areaMismatchPct !== undefined && areaMismatchPct > 20 && textClaimedHa !== undefined && (
+                <div className={`px-5 py-3 text-xs border-b border-border ${
+                  areaMismatchPct > 200
+                    ? "bg-red-500/10 text-red-400"
+                    : areaMismatchPct > 50
+                    ? "bg-orange-500/10 text-orange-400"
+                    : "bg-yellow-500/10 text-yellow-400"
+                }`}>
+                  <strong>Area discrepancy detected:</strong> Description claims{" "}
+                  <strong>{textClaimedHa.toFixed(0)} ha</strong> but KMZ file measures{" "}
+                  <strong>{claimedHa?.toFixed(1)} ha</strong>{" "}({areaMismatchPct.toFixed(0)}% difference)
+                </div>
+              )}
+
+              <Suspense fallback={
+                <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">
+                  Loading map…
+                </div>
+              }>
+                <SatelliteMap bbox={bbox} areaHa={claimedHa} />
+              </Suspense>
+
+              <div className="px-5 py-3 border-t border-border">
+                <p className="text-[10px] text-muted-foreground">
+                  Green rectangle = claimed KMZ boundary · Satellite imagery © Esri, USDA, USGS
+                </p>
+              </div>
+            </motion.div>
           )}
 
           {/* ── Stage 2: Satellite NDVI Card ──────────────────────────────── */}
@@ -348,6 +429,89 @@ const Results = () => {
                     </li>
                   ))}
                 </ul>
+              )}
+            </motion.div>
+          )}
+
+          {/* ── Stage 2.5: Baseline & Additionality ──────────────────────── */}
+          {apiResult?.additionality_verdict && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.28 }}
+              className="mt-6 rounded-xl border border-border bg-gradient-card p-6"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <TreePine className="h-5 w-5 text-trust-green-glow" />
+                  <h3 className="font-semibold text-sm">Baseline & Additionality</h3>
+                </div>
+                <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                  apiResult.additionality_verdict === "STRONG"
+                    ? "border-trust-green-glow/40 text-trust-green-glow bg-trust-green-glow/10"
+                    : apiResult.additionality_verdict === "MODERATE"
+                    ? "border-yellow-500/40 text-yellow-400 bg-yellow-500/10"
+                    : apiResult.additionality_verdict === "WEAK"
+                    ? "border-orange-500/40 text-orange-400 bg-orange-500/10"
+                    : "border-red-500/40 text-red-400 bg-red-500/10"
+                }`}>
+                  {apiResult.additionality_verdict} Additionality
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                {[
+                  {
+                    label: "Deforestation Pressure",
+                    value: apiResult.deforestation_pressure ?? "—",
+                    color: apiResult.deforestation_pressure === "CRITICAL" ? "text-red-400"
+                         : apiResult.deforestation_pressure === "HIGH"     ? "text-orange-400"
+                         : apiResult.deforestation_pressure === "MEDIUM"   ? "text-yellow-400"
+                         : "text-trust-green-glow",
+                  },
+                  {
+                    label: "Additionality Score",
+                    value: apiResult.additionality_score != null ? `${apiResult.additionality_score.toFixed(1)}/100` : "—",
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "Counterfactual Loss",
+                    value: apiResult.counterfactual_loss_ha != null ? `${apiResult.counterfactual_loss_ha.toFixed(1)} ha` : "—",
+                    color: "text-foreground",
+                  },
+                  {
+                    label: "Carbon at Risk",
+                    value: apiResult.carbon_at_risk_tonnes_co2e != null
+                      ? `${(apiResult.carbon_at_risk_tonnes_co2e / 1000).toFixed(1)}k tCO₂e`
+                      : "—",
+                    color: "text-foreground",
+                  },
+                ].map((m) => (
+                  <div key={m.label} className="rounded-lg bg-secondary/40 px-3 py-3 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">{m.label}</p>
+                    <p className={`text-sm font-bold ${m.color}`}>{m.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {apiResult.counterfactual_assessment && (
+                <div className="space-y-2 border-t border-border pt-4">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Counterfactual Scenario</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{apiResult.counterfactual_assessment}</p>
+                  </div>
+                  {apiResult.permanence_assessment && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 mt-3">Permanence Assessment</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{apiResult.permanence_assessment}</p>
+                    </div>
+                  )}
+                  {apiResult.baseline_summary && (
+                    <p className="text-xs text-muted-foreground leading-relaxed border-t border-border pt-3 mt-3">
+                      {apiResult.baseline_summary}
+                    </p>
+                  )}
+                </div>
               )}
             </motion.div>
           )}

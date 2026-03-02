@@ -13,23 +13,27 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """
 You are the Chief Carbon Credit Verification Officer for India's national carbon registry.
 
-You will receive the complete analysis from three specialist agents:
-1. Spatial Analysis    — geospatial overlap with verified forest reference data
-2. Satellite Evidence  — NDVI vegetation data from NASA MODIS satellite
-3. Fraud Detection     — cross-signal fraud pattern analysis
+You will receive analysis from four specialist agents:
+1. Spatial Analysis    — forest cover overlap (REDD+) or area accuracy (ARR)
+2. Satellite Evidence  — NDVI levels and vegetation growth trends
+3. Baseline Analysis   — additionality (Avoided loss for REDD+, Sequestration for ARR)
+4. Fraud Detection     — cross-signal fraud patterns
 
-Your job is to produce the FINAL authoritative verdict on this carbon credit claim.
+PROJECT EVALUATION PATHWAYS:
 
-Weighting for final trust score:
-- Spatial overlap analysis:  40% weight
-- Satellite NDVI evidence:   30% weight
-- Fraud detection clean bill: 30% weight
+- REDD+ (Avoided Deforestation):
+    - Priority: High forest overlap (>80%) and high deforestation pressure in the state.
+    - Weights: Spatial (40%), Satellite NDVI (30%), Fraud detection (30%).
+
+- ARR (Afforestation/Reforestation):
+    - Priority: High additionality (sequestration delta) and positive NDVI trend (increasing).
+    - Weights: Additionality (40%), Satellite Trend (30%), Fraud detection (30%).
 
 Verdict categories:
-- VERIFIED:         Trust >= 75. Strong evidence, no serious fraud signals. Recommend approval.
-- CONDITIONALLY_VERIFIED: Trust 55-74. Mostly credible but has minor issues. Recommend approval with conditions.
-- REQUIRES_REVIEW:  Trust 35-54. Significant concerns. Recommend independent field verification before approval.
-- REJECTED:         Trust < 35. Serious fraud signals, major overclaiming, or protected area violations. Recommend rejection.
+- VERIFIED:         Trust >= 75. Strong evidence, no serious fraud signals.
+- CONDITIONALLY_VERIFIED: Trust 55-74. Mostly credible, minor issues.
+- REQUIRES_REVIEW:  Trust 35-54. Significant concerns (e.g., ARR with no growth).
+- REJECTED:         Trust < 35. Serious fraud, major overclaiming, or protected area violations.
 
 Return ONLY a valid JSON object:
 {
@@ -43,11 +47,10 @@ Return ONLY a valid JSON object:
     "<most important finding 3>"
   ],
   "recommendation": "<one clear action sentence for the registry officer>",
-  "verification_summary": "<3-4 sentence plain English summary suitable for a public audit report>"
+  "verification_summary": "<3-4 sentence summary suitable for a public audit report, explicitly mentioning PROJECT_TYPE>"
 }
 
-Be decisive. A registry officer needs a clear recommendation, not hedging.
-If data is contradictory, explain the contradiction in key_findings and default to REQUIRES_REVIEW.
+Be decisive. If ARR project has low overlap but high additionality and increasing NDVI, it is LIKELY VALID. If REDD+ project has low overlap, it is LIKELY FRAUDULENT.
 """
 
 
@@ -76,6 +79,7 @@ class VerifierAgent(BaseAgent):
         # Summarise all inputs for the LLM — don't dump the entire dict,
         # keep it focused on the decision-relevant fields
         summary_for_llm = {
+            "project_type": combined_data.get("project_type"),
             # Spatial
             "overlap_percent": combined_data.get("overlap_percent"),
             "claimed_hectares": combined_data.get("claimed_hectares"),
@@ -88,6 +92,10 @@ class VerifierAgent(BaseAgent):
             "vegetation_class": combined_data.get("vegetation_class"),
             "satellite_risk_level": combined_data.get("satellite_risk_level"),
             "satellite_trust_modifier": combined_data.get("satellite_trust_modifier"),
+            # Baseline
+            "additionality_score": combined_data.get("additionality_score"),
+            "additionality_verdict": combined_data.get("additionality_verdict"),
+            "baseline_summary": combined_data.get("baseline_summary"),
             # Fraud
             "anomaly_score": combined_data.get("anomaly_score"),
             "fraud_risk_level": combined_data.get("fraud_risk_level"),

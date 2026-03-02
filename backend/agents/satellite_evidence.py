@@ -22,16 +22,19 @@ You will receive:
 Your job is to assess whether the satellite evidence SUPPORTS or CONTRADICTS the carbon credit claim.
 
 NDVI interpretation guide:
-- NDVI > 0.60 = Dense forest / high biomass — strongly supports forest claims
-- NDVI 0.40-0.60 = Moderate forest / mixed vegetation — partially supports claims
-- NDVI 0.20-0.40 = Sparse/Degraded vegetation — weakly supports claims, flag as concern
-- NDVI 0.10-0.20 = Very sparse / shrubland — unlikely to support carbon claims
-- NDVI < 0.10 = Near-bare ground / arid — CRITICAL, forest claims implausible
+- PROJECT TYPE = REDD+:
+    - NDVI > 0.60 = Dense forest — strongly supports claims.
+    - NDVI 0.40-0.60 = Moderate forest — partially supports claims.
+    - NDVI < 0.40 = RED FLAG / SPARSE — unlikely to be a valid REDD+ project.
+- PROJECT TYPE = ARR:
+    - NDVI 0.30-0.50 = Normal for young plantation / restoration — supports claims.
+    - NDVI < 0.20 = Very sparse — caution, but plausible for early-stage ARR.
+    - NDVI > 0.60 = Already dense forest — suspicion (why reforestation if already forest?).
 
 Trend interpretation:
-- INCREASING (>10% gain): Supports reforestation claims. Positive evidence.
-- STABLE (±10%): Neutral. Existing forest but no new sequestration growth.
-- DECREASING (>10% loss): RED FLAG. Possible deforestation. Contradicts conservation claims.
+- INCREASING (>10% gain): STRONG SUPPORT for ARR (new growth). Positive for REDD+.
+- STABLE (±10%): Neutral/Support for REDD+ (conservation). Neutral for ARR.
+- DECREASING (>10% loss): CRITICAL RED FLAG for all types (deforestation).
 
 Return ONLY a valid JSON object with these exact fields:
 {
@@ -39,16 +42,16 @@ Return ONLY a valid JSON object with these exact fields:
   "satellite_risk_level": "<one of: LOW, MEDIUM, HIGH, CRITICAL>",
   "satellite_trust_modifier": <integer, -30 to +10>,
   "satellite_flags": ["<flag1>", "<flag2>"],
-  "satellite_summary": "<2-3 sentence plain English assessment of what the satellite data shows>"
+  "satellite_summary": "<2-3 sentence plain English assessment of what the satellite data shows in the context of the project type>"
 }
 
 Scoring satellite_trust_modifier:
-- Dense forest, stable/increasing trend: +5 to +10
-- Moderate vegetation, stable: 0 to +5
-- Sparse vegetation: -10 to -5
-- Degraded land with forest claim: -20 to -10
-- Near-bare land with any forest claim: -30
-- Decreasing trend: subtract additional 10
+- ARR + Increasing Trend: +5 to +10
+- ARR + NDVI 0.3-0.5 (Stage 1-2): 0 to +5
+- REDD+ + Dense Forest (>0.6) + Stable: +5 to +10
+- REDD+ + NDVI < 0.4: -20 to -10
+- ANY + Decreasing TREND: -30 to -15
+- ARR + Already High NDVI (>0.7): -10 (Baseline inflation suspicion)
 """
 
 
@@ -96,6 +99,7 @@ class SatelliteEvidenceAgent(BaseAgent):
         geo_context = {}
         if project_analysis_result:
             geo_context = {
+                "project_type":              project_analysis_result.get("project_type"),
                 "overlap_percent":           project_analysis_result.get("overlap_percent"),
                 "claimed_hectares":          project_analysis_result.get("claimed_hectares"),
                 "verified_hectares":         project_analysis_result.get("verified_hectares"),
