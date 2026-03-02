@@ -168,7 +168,7 @@ const Verify = () => {
       setDone(true);
       setRunning(false);
       // Small pause so user sees the "done" state, then navigate
-      setTimeout(() => navigate("/results", { state: { result } }), 1200);
+      setTimeout(() => navigate("/results", { state: { result, kmzFile } }), 1200);
     } catch (err: unknown) {
       setRunning(false);
       setCurrentAgent(-1);

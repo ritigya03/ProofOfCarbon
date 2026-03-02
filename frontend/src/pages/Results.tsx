@@ -3,14 +3,15 @@ import { ExternalLink, ShieldCheck, AlertTriangle, Brain, Satellite, BarChart3, 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { useState } from "react";
+import ClaimMap from "@/components/claimmap";
 import { useLocation, Link } from "react-router-dom";
 
 // ── Static mock agent outputs (until baseline/fraud agents are built) ──
 const mockAgentOutputs = [
   { icon: Brain,       name: "Project Analysis Agent",   summary: "",  score: null },
   { icon: Satellite,   name: "Satellite Evidence Agent",  summary: "",  score: null },
-  { icon: BarChart3,   name: "Baseline Agent",            summary: "Baseline analysis pending — BaselineAgent not yet implemented.",   score: null },
-  { icon: SearchCheck, name: "Fraud Reasoning Agent",     summary: "Registry cross-check pending — RegistryFraudAgent not yet implemented.", score: null },
+  { icon: BarChart3,   name: "Baseline Agent",            summary: "",  score: null },
+  { icon: SearchCheck, name: "Fraud Reasoning Agent",     summary: "", score: null },
 ];
 
 const riskColor = (level: string) => {
@@ -63,6 +64,7 @@ const Results = () => {
   const location = useLocation();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const apiResult: Record<string, any> | undefined = location.state?.result;
+  const kmzFile: File | undefined = location.state?.kmzFile;
 
   const trustScore  = apiResult ? Math.round(apiResult.trust_score ?? 0) : 82;
   const riskLevel   = apiResult?.risk_level ?? "MEDIUM";
@@ -89,6 +91,25 @@ const Results = () => {
   const ndviDataSource = apiResult?.ndvi_data_source;   // MODIS_MOD13Q1 | MOCK
   const hasSatData     = ndviCurrent != null;
 
+  // ── Baseline fields ─────────────────────────────────────────────────────────
+  const additionalityVerdict = apiResult?.additionality_verdict;
+  const baselineRiskLevel    = apiResult?.baseline_risk_level;
+  const deforestationPressure = apiResult?.deforestation_pressure;
+  const additionalityScore   = apiResult?.additionality_score;
+  const counterfactualAssessment = apiResult?.counterfactual_assessment;
+  const permanenceAssessment = apiResult?.permanence_assessment;
+  const baselineSummary      = apiResult?.baseline_summary;
+  const additionalityFlags   = apiResult?.additionality_flags ?? [];
+  const hasBaselineData      = additionalityVerdict != null;
+
+  // ── Fraud detection fields ──────────────────────────────────────────────────
+  const anomalyScore         = apiResult?.anomaly_score;
+  const fraudRiskLevel       = apiResult?.fraud_risk_level;
+  const fraudPatterns        = apiResult?.fraud_patterns;
+  const fraudFlags           = apiResult?.fraud_flags ?? [];
+  const fraudSummary         = apiResult?.fraud_summary;
+  const hasFraudData         = anomalyScore != null;
+
   const agentOutputs = mockAgentOutputs.map((a, i) => {
     if (i === 0 && apiResult) {
       return { ...a, summary: summary || "Geospatial analysis complete.", score: trustScore };
@@ -100,6 +121,20 @@ const Results = () => {
         ...a,
         summary: satSummary || `NDVI ${ndviCurrent?.toFixed(4)} · ${vegClass?.replace(/_/g, " ")}${trendText}`,
         score: satModifier != null ? Math.max(0, Math.min(100, 50 + satModifier * 2)) : null,
+      };
+    }
+    if (i === 2 && hasBaselineData) {
+      return {
+        ...a,
+        summary: baselineSummary || `${additionalityVerdict} additionality · ${deforestationPressure} deforestation pressure`,
+        score: additionalityScore != null ? Math.round(additionalityScore) : null,
+      };
+    }
+    if (i === 3 && hasFraudData) {
+      return {
+        ...a,
+        summary: fraudSummary || `Anomaly score: ${anomalyScore?.toFixed(0)} · Risk: ${fraudRiskLevel}`,
+        score: anomalyScore != null ? Math.round(100 - anomalyScore) : null,
       };
     }
     return a;
@@ -160,9 +195,16 @@ const Results = () => {
                 </div>
               ))}
             </div>
+            
           )}
-
+          {apiResult && kmzFile && (
+  <div className="mt-6">
+    <ClaimMap kmzFile={kmzFile} />
+  </div>
+)}
           {/* Satellite NDVI Card */}
+
+
           {hasSatData && (
             <motion.div
               initial={{ opacity: 0, y: 15 }}
@@ -351,6 +393,71 @@ const Results = () => {
               </motion.div>
             ))}
           </div>
+
+          {/* Final Verdict */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+            className="mt-10 rounded-xl border border-border bg-gradient-card p-8"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <ShieldCheck className="h-6 w-6 text-trust-green-glow" />
+              <h3 className="text-lg font-semibold">Final Verdict</h3>
+            </div>
+
+            <div className="space-y-4">
+              {apiResult?.final_verdict && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Verdict</p>
+                  <p className="text-lg font-bold">{apiResult.final_verdict}</p>
+                </div>
+              )}
+
+              {apiResult?.final_trust_score != null && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Final Trust Score</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl font-bold text-trust-green-glow">{Math.round(apiResult.final_trust_score)}/100</div>
+                    <div className="text-sm text-muted-foreground">{apiResult.confidence ? `Confidence: ${apiResult.confidence}` : ""}</div>
+                  </div>
+                </div>
+              )}
+
+              {apiResult?.final_risk_level && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Risk Assessment</p>
+                  <span className={`inline-flex items-center gap-2 rounded-full bg-accent/15 px-4 py-1.5 text-sm font-semibold ${
+                    apiResult.final_risk_level === "LOW" ? "text-trust-green-glow" :
+                    apiResult.final_risk_level === "MEDIUM" ? "text-highlight-orange" :
+                    apiResult.final_risk_level === "HIGH" ? "text-orange-500" :
+                    "text-red-400"
+                  }`}>
+                    {apiResult.final_risk_level}
+                  </span>
+                </div>
+              )}
+
+              {apiResult?.key_findings && apiResult.key_findings.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Key Findings</p>
+                  <ul className="space-y-2">
+                    {apiResult.key_findings.map((finding: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <span className="mt-0.5 text-trust-green-glow shrink-0">✓</span>
+                        {finding}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {apiResult?.verification_summary && (
+                <div className="border-t border-border pt-4 mt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Summary</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{apiResult.verification_summary}</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
 
           {/* Blockchain Proof */}
           <motion.div
