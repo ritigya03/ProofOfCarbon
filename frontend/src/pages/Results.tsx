@@ -756,32 +756,68 @@ const Results = () => {
             <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="h-6 w-6 text-trust-green-glow" />
               <h3 className="text-lg font-semibold">Blockchain Proof</h3>
-              <span className="ml-auto text-xs text-muted-foreground italic">Smart contract anchoring — coming soon</span>
+              {apiResult?.tx_hash ? (
+                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-trust-green-glow/40 text-trust-green-glow bg-trust-green-glow/10">
+                  Confirmed ✓
+                </span>
+              ) : (
+                <span className="ml-auto text-xs text-muted-foreground italic">Pending blockchain write</span>
+              )}
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                 <span className="text-muted-foreground min-w-[120px]">Transaction Hash</span>
-                <code className="font-mono text-xs text-foreground bg-secondary/50 px-3 py-1.5 rounded break-all">
-                  0x7f3a8b...e4d2c1a9f6b8
-                </code>
+                {apiResult?.tx_hash ? (
+                  <a
+                    href={`https://amoy.polygonscan.com/tx/0x${apiResult.tx_hash.replace(/^0x/, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs text-accent hover:underline bg-secondary/50 px-3 py-1.5 rounded break-all inline-flex items-center gap-1.5"
+                  >
+                    0x{apiResult.tx_hash.replace(/^0x/, "").slice(0, 8)}…{apiResult.tx_hash.replace(/^0x/, "").slice(-8)}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                ) : (
+                  <code className="font-mono text-xs text-muted-foreground bg-secondary/50 px-3 py-1.5 rounded">—</code>
+                )}
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                <span className="text-muted-foreground min-w-[120px]">Record ID</span>
+                <span className="text-foreground">{apiResult?.record_id != null ? `#${apiResult.record_id}` : "—"}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                <span className="text-muted-foreground min-w-[120px]">Block Number</span>
+                <span className="text-foreground">{apiResult?.block_number ?? "—"}</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                 <span className="text-muted-foreground min-w-[120px]">Network</span>
                 <span className="text-foreground">Polygon Amoy Testnet</span>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                <span className="text-muted-foreground min-w-[120px]">Status</span>
-                <span className="text-xs text-muted-foreground italic">Pending blockchain integration</span>
-              </div>
+              {apiResult?.contract_address && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                  <span className="text-muted-foreground min-w-[120px]">Contract</span>
+                  <a
+                    href={`https://amoy.polygonscan.com/address/${apiResult.contract_address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs text-accent hover:underline inline-flex items-center gap-1.5"
+                  >
+                    {apiResult.contract_address.slice(0, 8)}…{apiResult.contract_address.slice(-6)}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                </div>
+              )}
             </div>
-            <a
-              href="https://amoy.polygonscan.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 text-sm text-accent hover:underline"
-            >
-              View on Explorer <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            {apiResult?.tx_hash && (
+              <a
+                href={`https://amoy.polygonscan.com/tx/0x${apiResult.tx_hash.replace(/^0x/, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 inline-flex items-center gap-2 text-sm text-accent hover:underline"
+              >
+                View on Explorer <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
           </motion.div>
 
           <div className="mt-8 flex justify-end">

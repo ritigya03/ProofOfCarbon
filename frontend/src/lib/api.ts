@@ -77,6 +77,13 @@ export interface AnalyzeResponse {
   key_findings: string[];
   recommendation: string | null;
   verification_summary: string | null;
+
+  // ── Stage 5: Blockchain proof (null if skipped/failed)
+  tx_hash: string | null;
+  record_id: number | null;
+  block_number: number | null;
+  chain_id: number | null;
+  contract_address: string | null;
 }
 
 // ── Health check utility ───────────────────────────────────────────────────────
@@ -92,5 +99,5 @@ export async function checkHealth(): Promise<boolean> {
     return data.agent_ready === true;
   } catch {
     return false;
-  } 
+  }
 }

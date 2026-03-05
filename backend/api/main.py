@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.schemas import AnalyzeResponse, HealthResponse
+from api.schemas import AnalyzeResponse, AuditsResponse, AuditRecord, HealthResponse
 from agents.project_analysis import ProjectAnalysisAgent
 from agents.satellite_evidence import SatelliteEvidenceAgent
 from agents.historical_baseline import HistoricalBaselineAgent
@@ -214,6 +214,25 @@ async def analyze(
             except Exception as e:
                 logger.warning(f"VerifierAgent failed (non-fatal): {e}")
 
+        # ── Stage 5: Blockchain on-chain write (non-fatal) ─────────────────────
+        logger.info("--- Stage 5: Blockchain Write ---")
+        try:
+            from tools.blockchain import log_verification_to_chain
+
+            chain_result = log_verification_to_chain(
+                project_name=merged.get("project_name", "Unknown"),
+                company_name=merged.get("company_name", "Unknown"),
+                trust_score=int(merged.get("trust_score", 50)),
+                risk_level=merged.get("risk_level", "MEDIUM"),
+                ipfs_hash="",  # IPFS integration can be added later
+            )
+            merged.update(chain_result)
+            logger.info(f"Blockchain write OK — tx={chain_result.get('tx_hash', '')[:16]}")
+        except EnvironmentError:
+            logger.info("Blockchain env vars not set — skipping on-chain write.")
+        except Exception as e:
+            logger.warning(f"Blockchain write failed (non-fatal): {e}")
+
         logger.info(
             f"Pipeline complete — verdict={merged.get('final_verdict', 'N/A')}, "
             f"trust={merged.get('trust_score')}, risk={merged.get('risk_level')}"
@@ -228,3 +247,26 @@ async def analyze(
         raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
     finally:
         os.unlink(tmp_path)
+
+
+@app.get("/audits", response_model=AuditsResponse)
+def get_audits(offset: int = 0, limit: int = 50):
+    """
+    Read verification records directly from the on-chain VerificationRegistry.
+    Supports pagination via offset/limit query params.
+    """
+    try:
+        from tools.blockchain import read_total_records, read_records_from_chain
+
+        total = read_total_records()
+        records = read_records_from_chain(offset=offset, limit=limit)
+        return AuditsResponse(
+            total=total,
+            records=[AuditRecord(**r) for r in records],
+        )
+    except FileNotFoundError:
+        logger.warning("deployed.json not found — cannot read on-chain records")
+        return AuditsResponse(total=0, records=[])
+    except Exception as e:
+        logger.error(f"Failed to read on-chain records: {e}")
+        raise HTTPException(status_code=502, detail=f"Blockchain read error: {str(e)}")

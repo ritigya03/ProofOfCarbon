@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
+
 
 
 class AnalyzeResponse(BaseModel):
@@ -91,9 +92,34 @@ class AnalyzeResponse(BaseModel):
     # ── All accumulated flags from all stages ─────────────────────────────────
     all_flags: list[str] = []
     analysis_flags: list[str] = []
+
+    # ── Blockchain proof (from Stage 5 — on-chain write) ──────────────────────
+    tx_hash: Optional[str] = None
+    record_id: Optional[int] = None
+    block_number: Optional[int] = None
+    chain_id: Optional[int] = None
+    contract_address: Optional[str] = None
     red_flags: list[str] = []
 
 
 class HealthResponse(BaseModel):
     status: str
     agent_ready: bool
+
+
+class AuditRecord(BaseModel):
+    """A single on-chain verification record."""
+    id: int
+    project_name: str
+    company_name: str
+    trust_score: int
+    risk_level: str
+    ipfs_hash: str = ""
+    verifier: str
+    timestamp: int
+
+
+class AuditsResponse(BaseModel):
+    """Paginated list of on-chain audit records."""
+    total: int
+    records: List[AuditRecord]
