@@ -112,6 +112,22 @@ async def analyze(
         )
         merged = {**spatial_result}
 
+        # ── Attach reference GeoJSON for frontend map overlays ────────────────
+        # The reference data was already fetched (and cached) by Stage 1.
+        # We re-read from cache (instant) and include it in the response so
+        # SatelliteMap can draw scrub/forest/plantation polygons.
+        try:
+            from tools.geospatial import load_reference
+            bbox = spatial_result.get("bbox")
+            if bbox:
+                ref_gdf = load_reference(bbox, layer="forest_cover")
+                if not ref_gdf.empty:
+                    merged["reference_geojson"] = ref_gdf.__geo_interface__
+                    logger.info(f"Attached {len(ref_gdf)} reference polygons to response")
+        except Exception as e:
+            logger.warning(f"Could not attach reference GeoJSON (non-fatal): {e}")
+
+
         # ── Stage 2: Satellite evidence (non-fatal) ───────────────────────────
         logger.info("--- Stage 2: SatelliteEvidenceAgent ---")
         bbox = spatial_result.get("bbox")

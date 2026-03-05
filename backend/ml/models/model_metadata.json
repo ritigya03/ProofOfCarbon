@@ -1,0 +1,44 @@
+{
+  "accuracy": 0.9975,
+  "n_estimators": 150,
+  "max_depth": 5,
+  "learning_rate": 0.1,
+  "n_train": 1600,
+  "n_test": 400,
+  "feature_columns": [
+    "overlap_percent",
+    "claimed_hectares",
+    "verified_hectares",
+    "area_ratio",
+    "protected_area_overlap_ha",
+    "ndvi_current_mean",
+    "ndvi_historical_mean",
+    "ndvi_change",
+    "ndvi_anomaly_score",
+    "additionality_score",
+    "is_arr",
+    "area_mismatch_pct",
+    "flag_count"
+  ],
+  "label_map": {
+    "VERIFIED": 0,
+    "CONDITIONALLY_VERIFIED": 1,
+    "REQUIRES_REVIEW": 2,
+    "REJECTED": 3
+  },
+  "feature_importance": {
+    "flag_count": 0.2638,
+    "additionality_score": 0.2,
+    "protected_area_overlap_ha": 0.1209,
+    "overlap_percent": 0.1133,
+    "ndvi_change": 0.0793,
+    "ndvi_historical_mean": 0.0703,
+    "ndvi_current_mean": 0.0582,
+    "area_mismatch_pct": 0.0397,
+    "ndvi_anomaly_score": 0.0355,
+    "claimed_hectares": 0.011,
+    "is_arr": 0.0055,
+    "verified_hectares": 0.0025,
+    "area_ratio": 0.0
+  }
+}

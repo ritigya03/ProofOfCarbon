@@ -19,6 +19,14 @@ class AnalyzeResponse(BaseModel):
     # ── Bounding box — used by the frontend satellite map ─────────────────────
     bbox: Optional[dict] = None           # {min_lon, min_lat, max_lon, max_lat}
 
+    # ── Stage-specific scores (preserved before Verifier overwrites trust_score) ─
+    spatial_trust_score: Optional[float] = None   # ProjectAnalysisAgent's own score
+
+    # ── Reference land-cover GeoJSON (fetched from OSM/Overpass) ─────────────
+    # Contains scrub, forest, plantation, orchard polygons overlapping the bbox.
+    # Passed to SatelliteMap for display as coloured overlays.
+    reference_geojson: Optional[dict] = None
+
     # ── Area mismatch (text description vs KMZ measurement) ──────────────────
     text_claimed_ha: Optional[float] = None    # ha extracted from company text
     area_mismatch_pct: Optional[float] = None  # % difference vs KMZ area
@@ -56,6 +64,13 @@ class AnalyzeResponse(BaseModel):
     fraud_patterns: Optional[dict] = None
     fraud_flags: list[str] = []
     fraud_summary: Optional[str] = None
+
+    # ── ML model predictions (from FraudDetectionAgent ML layer) ──────────
+    ml_anomaly_score: Optional[float] = None
+    ml_fraud_risk_level: Optional[str] = None
+    ml_verdict: Optional[str] = None
+    ml_confidence: Optional[float] = None
+    ml_class_probabilities: Optional[dict] = None
 
     # ── Final verdict (from VerifierAgent) ───────────────────────────────────
     final_verdict: Optional[str] = (

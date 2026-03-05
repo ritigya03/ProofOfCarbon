@@ -27,6 +27,11 @@ You will receive:
 
 Your job is to assess the credibility of the carbon credit claim and identify red flags.
 
+IMPORTANT — DATA QUALITY NOTE:
+- The reference forest data comes from OpenStreetMap (OSM), which is INCOMPLETE for many Indian states.
+- Overlap of 30-60% may simply mean OSM lacks polygons for parts of the area, not that there's no forest.
+- Do NOT assign CRITICAL risk solely based on low overlap — you need corroborating evidence (e.g., protected area violation, extreme overclaiming in text).
+
 Return ONLY a valid JSON object with these exact fields:
 {
   "project_name": "<extracted from text or 'Unknown'>",
@@ -41,29 +46,34 @@ Return ONLY a valid JSON object with these exact fields:
   "trust_score": <number 0-100>,
   "analysis_flags": ["<flag1>", "<flag2>"],
   "red_flags": ["<serious concern1>", ...],
-  "summary": "<2-3 sentence plain English assessment>"
+  "summary": "<2-3 sentence plain English assessment, noting data quality caveats where applicable>"
 }
 
 Project Type Classification Rules:
 - ARR: (Afforestation, Reforestation, and Revegetation). Use this if the project describes planting new trees, restoring degraded land, working on non-forest land, or mentions keywords like "AR", "ARR", "A/R", "Reforestation", "Afforestation", "Planting", "CDM", "CER".
 - REDD+: (Reducing Emissions from Deforestation and Forest Degradation). Use this if the project focuses on protecting existing forests, preventing logging/clearing, or mentions keywords like "REDD", "Avoided Deforestation", "Conservation", "Protection".
-- UNKNOWN: Use if neither is clear.
+- UNKNOWN: Use if neither is clear. Do not penalize heavily for unknown type.
 
 Risk level guide:
 - LOW: 
-    - REDD+: overlap > 80%, no protected area issues, consistent claims.
+    - REDD+: overlap > 70%, no protected area issues, consistent claims.
     - ARR: overlap 0-100% (not a risk factor), no protected area issues, consistent claims.
+    - UNKNOWN: overlap > 60%, no protected area issues.
 - MEDIUM: 
-    - REDD+: overlap 50-80%, minor inconsistencies.
+    - REDD+: overlap 30-70%, minor inconsistencies. OSM data may be incomplete.
     - ARR: minor inconsistencies in text vs KMZ or state.
+    - UNKNOWN: overlap 30-60%, no major red flags.
 - HIGH: 
-    - REDD+: overlap 20-50%, suspicious claims.
+    - REDD+: overlap 10-30% AND other concerning signals (e.g., very large overclaim).
     - ARR: suspicious text claims, major inconsistencies (not relating to forest overlap).
 - CRITICAL: 
     - ALL: protected area fraud, fabricated figures, or KMZ/claim total contradiction.
-    - REDD+: overlap < 20%.
+    - REDD+: overlap < 10% AND NDVI/text evidence also contradicts claims.
 
-Trust score = weighted combination of spatial overlap (60% for REDD+, but 0% for ARR - use claim consistency 70% and area accuracy 30% for ARR), claim consistency, and area accuracy.
+Trust score guide:
+- REDD+: spatial overlap (40%), claim consistency (30%), area accuracy (30%). Overlap 30-60% should still yield trust 40-55 (inconclusive, not damning).
+- ARR: claim consistency (50%), area accuracy (30%), additionality indicators (20%). Overlap is NOT a factor.
+- UNKNOWN: blend of REDD+ and ARR — overlap (25%), claim consistency (40%), area accuracy (35%). Be generous with unknown type.
 """
 
 
@@ -152,7 +162,43 @@ class ProjectAnalysisAgent(BaseAgent):
         # Prefer LLM detection if it's not UNKNOWN, else fallback to deterministic
         if result.get("project_type", "UNKNOWN") == "UNKNOWN" and det_type != "UNKNOWN":
             result["project_type"] = det_type
-        
+
+        # ── ARR Trust Override ───────────────────────────────────────────────
+        # For ARR projects, 0% forest overlap is EXPECTED (they plant on degraded land).
+        # We set a neutral starting score (70) that subsequent agents will adjust.
+        if result.get("project_type") == "ARR":
+            pa_overlap = pa_result.get("protected_area_overlap_ha", 0) or 0
+            if pa_overlap < 1.0:  # only override if no protected area issues
+                result["trust_score"] = 70
+                result["risk_level"] = "LOW"
+                logger.info(
+                    "[ProjectAnalysisAgent] ARR project detected — "
+                    "overriding trust_score to 70 (overlap not a risk factor for ARR)"
+                )
+
+            # Strip misleading overlap-based CRITICAL flags for ARR.
+            # 0% forest cover is CORRECT for a site being NEWLY planted on.
+            _overlap_keywords = [
+                "Less than 10% of claimed area matches verified forest cover",
+                "CRITICAL: Less than",
+                "Clipped to 0 polygons",
+            ]
+            cleaned_flags = [
+                f for f in result["all_flags"]
+                if not any(kw in f for kw in _overlap_keywords)
+            ]
+            if len(cleaned_flags) < len(result["all_flags"]):
+                cleaned_flags.insert(
+                    0,
+                    "INFO (ARR): Zero forest overlap is expected — project is planting on non-forested/degraded land."
+                )
+            result["all_flags"] = cleaned_flags
+
+        # Preserve Stage 1's own score before the Verifier overwrites trust_score.
+        # The frontend uses this to show the Project Analysis Agent's real verdict.
+        result["spatial_trust_score"] = result.get("trust_score", 0)
+
+
         # ── Step 7: Area mismatch check (text claim vs KMZ measurement) ─────
         # The LLM extracts "claimed_area_ha" from the company's text description.
         # Compare this against the actual KMZ-measured area to catch overclaiming

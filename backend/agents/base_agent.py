@@ -34,7 +34,7 @@ class BaseAgent:
         if groq_key:
             from groq import Groq
 
-            self.client = Groq(api_key=groq_key)
+            self.client = Groq(api_key=groq_key, timeout=60.0)
             if self.model == "gpt-4o-mini":
                 self.model = "llama-3.3-70b-versatile"  # Groq default
             logger.info(f"[{self.name}] Using Groq client with model {self.model}")

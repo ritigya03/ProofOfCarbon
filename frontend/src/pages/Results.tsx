@@ -105,7 +105,7 @@ const Results = () => {
       icon: Brain,
       name: "Project Analysis Agent",
       summary: summary || "Geospatial analysis complete.",
-      score: apiResult ? Math.round(apiResult.trust_score ?? 0) : null,
+      score: apiResult ? Math.round((apiResult as any).spatial_trust_score ?? apiResult.trust_score ?? 0) : null,
       detail: apiResult ? [
         `Overlap: ${overlapPct?.toFixed(1)}%`,
         `Claimed: ${claimedHa?.toFixed(1)} ha / Verified: ${verifiedHa?.toFixed(1)} ha`,
@@ -282,12 +282,12 @@ const Results = () => {
                   Loading map…
                 </div>
               }>
-                <SatelliteMap bbox={bbox} areaHa={claimedHa} />
+                <SatelliteMap bbox={bbox} areaHa={claimedHa} referenceGeojson={apiResult?.reference_geojson} />
               </Suspense>
 
               <div className="px-5 py-3 border-t border-border">
                 <p className="text-[10px] text-muted-foreground">
-                  Green rectangle = claimed KMZ boundary · Satellite imagery © Esri, USDA, USGS
+                  <span className="text-sky-400">▭</span> Blue dashed = claimed KMZ boundary · <span className="text-green-500">■</span> Forest · <span className="text-cyan-400">■</span> Plantation · <span className="text-lime-400">■</span> Scrub · Imagery © Esri, USDA, USGS
                 </p>
               </div>
             </motion.div>
@@ -597,6 +597,11 @@ const Results = () => {
                 <div className="flex items-center gap-3">
                   <SearchCheck className="h-5 w-5 text-trust-green-glow" />
                   <h3 className="font-semibold text-sm">Fraud Detection</h3>
+                  {apiResult.ml_confidence != null && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-purple-500/40 text-purple-400 bg-purple-500/10">
+                      ML · {(apiResult.ml_confidence * 100).toFixed(0)}% conf
+                    </span>
+                  )}
                 </div>
                 {apiResult.anomaly_score != null && (
                   <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
@@ -610,6 +615,29 @@ const Results = () => {
                   </span>
                 )}
               </div>
+
+              {/* ML Model Verdict Banner */}
+              {apiResult.ml_verdict && (
+                <div className="mb-4 flex items-center gap-3 rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400">ML Model</span>
+                  <span className={`text-xs font-bold ${
+                    apiResult.ml_verdict === "VERIFIED" ? "text-trust-green-glow" :
+                    apiResult.ml_verdict === "CONDITIONALLY_VERIFIED" ? "text-yellow-400" :
+                    apiResult.ml_verdict === "REQUIRES_REVIEW" ? "text-orange-400" :
+                    "text-red-400"
+                  }`}>
+                    {apiResult.ml_verdict.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    Risk: <span className={`font-bold ${
+                      apiResult.ml_fraud_risk_level === "LOW" ? "text-trust-green-glow" :
+                      apiResult.ml_fraud_risk_level === "MEDIUM" ? "text-yellow-400" :
+                      apiResult.ml_fraud_risk_level === "HIGH" ? "text-orange-400" :
+                      "text-red-400"
+                    }`}>{apiResult.ml_fraud_risk_level}</span>
+                  </span>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(apiResult.fraud_patterns).map(([pattern, status]) => (

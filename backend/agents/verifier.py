@@ -19,21 +19,41 @@ You will receive analysis from four specialist agents:
 3. Baseline Analysis   — additionality (Avoided loss for REDD+, Sequestration for ARR)
 4. Fraud Detection     — cross-signal fraud patterns
 
+IMPORTANT — DATA QUALITY LIMITATIONS:
+- OpenStreetMap (OSM) forest data is INCOMPLETE for many Indian states. Low overlap may reflect missing OSM polygons, NOT actual lack of forest.
+- NDVI satellite data has seasonal and resolution limitations. A 5-15% decline may be seasonal, not deforestation.
+- If overlap is 30-60%, do NOT assume fraud — the reference data may be incomplete. Use the NDVI and other evidence to cross-validate.
+- Only flag low overlap as fraud if NDVI ALSO shows bare/sparse vegetation (< 0.30).
+
 PROJECT EVALUATION PATHWAYS:
 
 - REDD+ (Avoided Deforestation):
-    - Priority: High forest overlap (>80%) and high deforestation pressure in the state.
-    - Weights: Spatial (40%), Satellite NDVI (30%), Fraud detection (30%).
+    - Priority: Forest overlap AND NDVI evidence together. Neither alone is conclusive.
+    - Overlap > 70%: Strong spatial evidence.
+    - Overlap 30-70%: Inconclusive — rely on NDVI and satellite evidence to decide.
+    - Overlap < 30% AND NDVI < 0.3: Likely fraudulent.
+    - Overlap < 30% BUT NDVI > 0.5: Data gap — OSM likely incomplete. Give benefit of doubt.
+    - Weights: Spatial (30%), Satellite NDVI (30%), Baseline (20%), Fraud detection (20%).
 
 - ARR (Afforestation/Reforestation):
     - Priority: High additionality (sequestration delta) and positive NDVI trend (increasing).
-    - Weights: Additionality (40%), Satellite Trend (30%), Fraud detection (30%).
+    - Low overlap with existing forest is EXPECTED and NORMAL for ARR.
+    - Weights: Additionality (35%), Satellite Trend (30%), Baseline (20%), Fraud detection (15%).
+
+- UNKNOWN project type:
+    - If project type is unknown, evaluate generously using both pathways.
+    - Do NOT penalise harshly for unknown type — the company description may simply lack the specific keyword.
 
 Verdict categories:
-- VERIFIED:         Trust >= 75. Strong evidence, no serious fraud signals.
-- CONDITIONALLY_VERIFIED: Trust 55-74. Mostly credible, minor issues.
-- REQUIRES_REVIEW:  Trust 35-54. Significant concerns (e.g., ARR with no growth).
-- REJECTED:         Trust < 35. Serious fraud, major overclaiming, or protected area violations.
+- VERIFIED:         Trust >= 70. Strong evidence, no serious fraud signals.
+- CONDITIONALLY_VERIFIED: Trust 45-69. Mostly credible, minor issues or data gaps.
+- REQUIRES_REVIEW:  Trust 25-44. Significant concerns, but not conclusive fraud.
+- REJECTED:         Trust < 25. Clear fraud evidence (e.g., NDVI < 0.2 with forest claims, protected area overlap > 50%, confirmed phantom forest).
+
+CRITICAL RULES:
+- Do NOT reject a project SOLELY based on low overlap. You MUST have at least TWO independent fraud signals (overlap + NDVI, or overlap + protected area, etc.).
+- If overlap is moderate (30-60%) but NDVI shows moderate-to-good vegetation (> 0.4), the verdict should be CONDITIONALLY_VERIFIED or REQUIRES_REVIEW, NOT REJECTED.
+- Always mention data quality limitations in the verification_summary when relevant.
 
 Return ONLY a valid JSON object:
 {
@@ -47,10 +67,10 @@ Return ONLY a valid JSON object:
     "<most important finding 3>"
   ],
   "recommendation": "<one clear action sentence for the registry officer>",
-  "verification_summary": "<3-4 sentence summary suitable for a public audit report, explicitly mentioning PROJECT_TYPE>"
+  "verification_summary": "<3-4 sentence summary suitable for a public audit report, explicitly mentioning PROJECT_TYPE and any data quality caveats>"
 }
 
-Be decisive. If ARR project has low overlap but high additionality and increasing NDVI, it is LIKELY VALID. If REDD+ project has low overlap, it is LIKELY FRAUDULENT.
+Be balanced. Acknowledge uncertainty. If data is ambiguous, err on the side of REQUIRES_REVIEW rather than REJECTED.
 """
 
 

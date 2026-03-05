@@ -3,7 +3,9 @@
  * Uses ESRI World Imagery tiles (free, no API key required).
  *
  * Props:
- *   bbox: { min_lon, min_lat, max_lon, max_lat }  — from the /analyze API response
+ *   bbox:             { min_lon, min_lat, max_lon, max_lat }  — from the /analyze API response
+ *   areaHa:           claimed area in hectares
+ *   referenceGeojson: GeoJSON FeatureCollection of scrub/forest/plantation polygons from OSM
  */
 
 import { useEffect, useRef } from "react";
@@ -20,9 +22,43 @@ interface Bbox {
 interface SatelliteMapProps {
   bbox: Bbox;
   areaHa?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  referenceGeojson?: any;
 }
 
-export default function SatelliteMap({ bbox, areaHa }: SatelliteMapProps) {
+// ── Land-cover type → colour mapping ─────────────────────────────────────────
+function getLandCoverStyle(feature: GeoJSON.Feature): L.PathOptions {
+  const tags = (feature.properties ?? {}) as Record<string, string>;
+  const landuse   = (tags.forest_type ?? "").toLowerCase();
+  const natural   = (tags.natural ?? "").toLowerCase();
+
+  // Plantation / orchard / nursery — company-run forestation (teal/cyan)
+  if (["plantation", "plant_nursery", "orchard", "vineyard"].includes(landuse)) {
+    return { color: "#22d3ee", weight: 1.5, fillColor: "#22d3ee", fillOpacity: 0.35 };
+  }
+  // Dense natural forest / wood (dark green)
+  if (natural === "wood" || landuse === "forest") {
+    return { color: "#16a34a", weight: 1.5, fillColor: "#16a34a", fillOpacity: 0.35 };
+  }
+  // Scrub / grassland (yellow-green)
+  if (["scrub", "grassland"].includes(natural)) {
+    return { color: "#a3e635", weight: 1.5, fillColor: "#a3e635", fillOpacity: 0.30 };
+  }
+  // Fallback (olive)
+  return { color: "#84cc16", weight: 1.5, fillColor: "#84cc16", fillOpacity: 0.25 };
+}
+
+function getLandCoverLabel(feature: GeoJSON.Feature): string {
+  const tags = (feature.properties ?? {}) as Record<string, string>;
+  const name    = tags.name ?? "";
+  const ft      = (tags.forest_type ?? "").replace(/_/g, " ");
+  const natural = (tags.natural ?? "").replace(/_/g, " ");
+  const label   = name || ft || natural || "Vegetation";
+  const src     = tags.source ?? "OpenStreetMap";
+  return `<strong style="text-transform:capitalize">${label}</strong><br/><span style="color:#888;font-size:11px">Source: ${src}</span>`;
+}
+
+export default function SatelliteMap({ bbox, areaHa, referenceGeojson }: SatelliteMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
@@ -58,24 +94,34 @@ export default function SatelliteMap({ bbox, areaHa }: SatelliteMapProps) {
       { maxZoom: 18, opacity: 0.7 }
     ).addTo(map);
 
-    // Draw the claimed bbox rectangle
+    // ── Reference land-cover polygons (scrub / forest / plantation) ──────────
+    if (referenceGeojson && referenceGeojson.features?.length > 0) {
+      L.geoJSON(referenceGeojson, {
+        style: getLandCoverStyle,
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup(getLandCoverLabel(feature), { maxWidth: 220 });
+        },
+      }).addTo(map);
+    }
+
+    // ── Claimed KMZ boundary (bright blue dashed rectangle — distinct from green reference polygons)
     const bounds: L.LatLngBoundsExpression = [
       [bbox.min_lat, bbox.min_lon],
       [bbox.max_lat, bbox.max_lon],
     ];
 
     const rect = L.rectangle(bounds, {
-      color: "#4ade80",       // trust-green-glow
-      weight: 2.5,
-      opacity: 0.95,
-      fillColor: "#4ade80",
-      fillOpacity: 0.12,
+      color: "#38bdf8",         // sky-blue — stands out from green OSM polygons
+      weight: 3,
+      opacity: 1,
+      dashArray: "8, 6",       // dashed border for extra distinction
+      fillColor: "#38bdf8",
+      fillOpacity: 0.08,
     }).addTo(map);
 
-    // Popup on the rectangle
     rect.bindPopup(
       `<div style="font-family:system-ui;font-size:13px;line-height:1.6">
-        <strong>Claimed Area</strong><br/>
+        <strong>Claimed Project Area</strong><br/>
         ${areaHa != null ? `<span>${areaHa.toFixed(1)} ha (from KMZ)</span><br/>` : ""}
         <span style="color:#888;font-size:11px">
           ${bbox.min_lat.toFixed(5)}°N, ${bbox.min_lon.toFixed(5)}°E
@@ -91,7 +137,7 @@ export default function SatelliteMap({ bbox, areaHa }: SatelliteMapProps) {
       map.remove();
       mapRef.current = null;
     };
-  }, [bbox, areaHa]);
+  }, [bbox, areaHa, referenceGeojson]);
 
   return (
     <div

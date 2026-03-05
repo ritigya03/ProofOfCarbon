@@ -21,11 +21,18 @@ You will receive:
 
 Your job is to assess whether the satellite evidence SUPPORTS or CONTRADICTS the carbon credit claim.
 
+DATA QUALITY NOTE:
+- MODIS has 250m resolution — small fragmented forests may not register accurately.
+- NDVI changes of 5-15% can be caused by seasonal variation, drought, or sensor noise — not necessarily deforestation.
+- Only treat NDVI declines > 20% as a CRITICAL red flag. Declines of 5-15% should be flagged as MEDIUM concern, not CRITICAL.
+- Moderate NDVI (0.40-0.60) is reasonable for many Indian forest types, including open forests, dry deciduous, and scrub woodlands.
+
 NDVI interpretation guide:
 - PROJECT TYPE = REDD+:
     - NDVI > 0.60 = Dense forest — strongly supports claims.
-    - NDVI 0.40-0.60 = Moderate forest — partially supports claims.
-    - NDVI < 0.40 = RED FLAG / SPARSE — unlikely to be a valid REDD+ project.
+    - NDVI 0.40-0.60 = Moderate forest — partially supports claims. This is normal for open/dry forests.
+    - NDVI < 0.40 = Sparse vegetation — concern, but not conclusive (could be dry season data).
+    - NDVI < 0.25 = RED FLAG — unlikely to be any meaningful forest.
 - PROJECT TYPE = ARR:
     - NDVI 0.30-0.50 = Normal for young plantation / restoration — supports claims.
     - NDVI < 0.20 = Very sparse — caution, but plausible for early-stage ARR.
@@ -34,23 +41,26 @@ NDVI interpretation guide:
 Trend interpretation:
 - INCREASING (>10% gain): STRONG SUPPORT for ARR (new growth). Positive for REDD+.
 - STABLE (±10%): Neutral/Support for REDD+ (conservation). Neutral for ARR.
-- DECREASING (>10% loss): CRITICAL RED FLAG for all types (deforestation).
+- DECREASING (10-20% loss): CONCERN — possible degradation, but could be seasonal. Flag as MEDIUM.
+- DECREASING (>20% loss): CRITICAL RED FLAG — likely deforestation.
 
 Return ONLY a valid JSON object with these exact fields:
 {
   "vegetation_class": "<one of: DENSE_FOREST, MODERATE_FOREST, SPARSE_VEGETATION, DEGRADED, BARE_GROUND>",
   "satellite_risk_level": "<one of: LOW, MEDIUM, HIGH, CRITICAL>",
-  "satellite_trust_modifier": <integer, -30 to +10>,
+  "satellite_trust_modifier": <integer, -20 to +10>,
   "satellite_flags": ["<flag1>", "<flag2>"],
-  "satellite_summary": "<2-3 sentence plain English assessment of what the satellite data shows in the context of the project type>"
+  "satellite_summary": "<2-3 sentence plain English assessment, acknowledging data limitations where relevant>"
 }
 
 Scoring satellite_trust_modifier:
 - ARR + Increasing Trend: +5 to +10
 - ARR + NDVI 0.3-0.5 (Stage 1-2): 0 to +5
 - REDD+ + Dense Forest (>0.6) + Stable: +5 to +10
-- REDD+ + NDVI < 0.4: -20 to -10
-- ANY + Decreasing TREND: -30 to -15
+- REDD+ + NDVI 0.4-0.6 + Stable: 0 to +3 (moderate forest is still valid)
+- REDD+ + NDVI < 0.3: -15 to -10
+- ANY + Decreasing 10-20%: -10 to -5 (concern, not catastrophic)
+- ANY + Decreasing >20%: -20 to -15 (critical)
 - ARR + Already High NDVI (>0.7): -10 (Baseline inflation suspicion)
 """
 

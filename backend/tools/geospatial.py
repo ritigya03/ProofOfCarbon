@@ -120,12 +120,12 @@ def _overpass_query(bbox_tuple: tuple) -> str:
     return f"""
 [out:json][timeout:300];
 (
-  way["natural"~"wood|scrub"]({s},{w},{n},{e});
-  way["landuse"~"forest|orchard"]({s},{w},{n},{e});
+  way["natural"~"wood|scrub|grassland"]({s},{w},{n},{e});
+  way["landuse"~"forest|orchard|plantation|plant_nursery|vineyard"]({s},{w},{n},{e});
   way["leisure"="nature_reserve"]({s},{w},{n},{e});
   way["boundary"~"forest|forest_reserve|protected_area"]({s},{w},{n},{e});
-  relation["natural"~"wood|scrub"]({s},{w},{n},{e});
-  relation["landuse"~"forest|orchard"]({s},{w},{n},{e});
+  relation["natural"~"wood|scrub|grassland"]({s},{w},{n},{e});
+  relation["landuse"~"forest|orchard|plantation|plant_nursery|vineyard"]({s},{w},{n},{e});
   relation["leisure"="nature_reserve"]({s},{w},{n},{e});
   relation["boundary"~"forest_reserve|protected_area"]({s},{w},{n},{e});
 );
@@ -398,13 +398,16 @@ def compare_claim_to_reference(
         )
     elif overlap_pct < 10:
         flags.append(
-            "CRITICAL: Less than 10% of claimed area matches verified forest cover"
+            "WARNING: Less than 10% of claimed area matches OSM reference forest data. "
+            "Note: OSM coverage is incomplete for many Indian regions — low overlap "
+            "may indicate data gaps rather than absence of forest."
         )
     elif overlap_pct < 50:
         flags.append(
-            f"WARNING: Only {overlap_pct:.1f}% of claimed area is verified forest"
+            f"WARNING: Only {overlap_pct:.1f}% of claimed area is verified forest "
+            f"in OSM data. OSM coverage may be incomplete for this region."
         )
-    if claimed_ha > actual_ha * 1.5 and actual_ha > 0:
+    if claimed_ha > actual_ha * 2.0 and actual_ha > 0:
         flags.append(
             f"Area overclaim detected: {claimed_ha:.1f} ha claimed vs {actual_ha:.1f} ha verified"
         )
