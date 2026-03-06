@@ -231,6 +231,14 @@ class ProjectAnalysisAgent(BaseAgent):
         except (TypeError, ValueError):
             pass  # if LLM didn't extract a numeric area, skip silently
 
+        # ── Add claimed polygon as GeoJSON for frontend to display actual boundary ──
+        # This allows the map to "hug" the actual claimed area, not just the bounding box.
+        try:
+            result["claimed_polygon_geojson"] = company_gdf.__geo_interface__
+            logger.info(f"Attached claimed polygon ({len(company_gdf)} features) to response")
+        except Exception as e:
+            logger.warning(f"Could not convert claimed polygon to GeoJSON: {e}")
+
         logger.info(
             f"[ProjectAnalysisAgent] Result: type={result.get('project_type')}, "
             f"risk={result.get('risk_level')}, "
