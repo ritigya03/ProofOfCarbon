@@ -27,25 +27,35 @@ class BaseAgent:
         self._init_client()
 
     def _init_client(self):
-        """Initialize LLM client. Supports OpenAI or Groq via env vars."""
-        groq_key = os.getenv("LLM_API_KEY")
-        # openai_key = os.getenv("LLM_API_KEY")
+        """Initialize LLM client. Supports OpenAI, XAI (Grok), or Groq."""
+        # Provider priorities: XAI > Groq > OpenAI
+        xai_key = os.getenv("XAI_API_KEY")
+        groq_key = os.getenv("GROQ_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
 
-        if groq_key:
+        if xai_key:
+            from openai import OpenAI
+            self.client = OpenAI(
+                api_key=xai_key,
+                base_url="https://api.x.ai/v1",
+            )
+            # Default to grok-2-1212 if not specified otherwise
+            if self.model == "gpt-4o-mini":
+                self.model = "grok-2-1212"
+            logger.info(f"[{self.name}] Using XAI (Grok) client with model {self.model}")
+        elif groq_key:
             from groq import Groq
-
             self.client = Groq(api_key=groq_key, timeout=60.0)
             if self.model == "gpt-4o-mini":
-                self.model = "llama-3.3-70b-versatile"  # Groq default
+                self.model = "llama-3.3-70b-versatile"
             logger.info(f"[{self.name}] Using Groq client with model {self.model}")
-        # if openai_key:
-        #     from openai import OpenAI
-
-        #     self.client = OpenAI(api_key=openai_key)
-        #     logger.info(f"[{self.name}] Using OpenAI client with model {self.model}")
+        elif openai_key:
+            from openai import OpenAI
+            self.client = OpenAI(api_key=openai_key)
+            logger.info(f"[{self.name}] Using OpenAI client with model {self.model}")
         else:
             raise EnvironmentError(
-                "Neither GROQ_API_KEY nor LLM_API_KEY found in environment."
+                "No LLM API Key found (XAI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY)."
             )
 
     def run(self, input_data: dict) -> dict:
