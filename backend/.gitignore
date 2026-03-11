@@ -4,14 +4,16 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
 # Ignore all data/ contents
 data/
 .data/
 
-# But allow these specific reference GeoJSONs for the project to work!
+# But allow these specific reference files for the project to work!
 !data/reference/india_forest_cover.geojson
 !data/reference/india_protected_areas.geojson
 !data/reference/*.csv
+!data/config/satellite_thresholds.json
 
 # Ignore caches and local results
 data/reference/cache/
