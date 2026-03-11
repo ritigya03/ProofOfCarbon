@@ -31,7 +31,17 @@ class BaseAgent:
         # Provider priorities: XAI > Groq > OpenAI
         xai_key = os.getenv("XAI_API_KEY")
         groq_key = os.getenv("GROQ_API_KEY")
-        openai_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
+        llm_api_key = os.getenv("LLM_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
+
+        # Smart detection: if LLM_API_KEY starts with gsk_, it's Groq
+        if not groq_key and llm_api_key and llm_api_key.startswith("gsk_"):
+            groq_key = llm_api_key
+            logger.info(f"[{self.name}] Detected Groq key in LLM_API_KEY")
+        
+        # Fallback for LLM_API_KEY as OpenAI
+        if not openai_key and not groq_key and llm_api_key:
+            openai_key = llm_api_key
 
         if xai_key:
             from openai import OpenAI
@@ -39,7 +49,6 @@ class BaseAgent:
                 api_key=xai_key,
                 base_url="https://api.x.ai/v1",
             )
-            # Default to grok-2-1212 if not specified otherwise
             if self.model == "gpt-4o-mini":
                 self.model = "grok-2-1212"
             logger.info(f"[{self.name}] Using XAI (Grok) client with model {self.model}")
@@ -55,7 +64,7 @@ class BaseAgent:
             logger.info(f"[{self.name}] Using OpenAI client with model {self.model}")
         else:
             raise EnvironmentError(
-                "No LLM API Key found (XAI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY)."
+                "No LLM API Key found (XAI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, or LLM_API_KEY)."
             )
 
     def run(self, input_data: dict) -> dict:
