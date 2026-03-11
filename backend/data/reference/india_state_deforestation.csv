@@ -1,0 +1,31 @@
+state,forest_cover_km2,annual_deforestation_rate_pct,reference_period_loss_km2,forest_type_permanence_score,redd_additionality_score,arr_additionality_score,deforestation_pressure_level,carbon_density_tC_ha,notes
+Andhra Pradesh,23023,0.42,178.2,0.71,0.68,0.62,medium,145,Mixed dry and moist deciduous
+Arunachal Pradesh,67248,0.18,221.5,0.89,0.55,0.71,low,210,Largely intact subtropical and temperate forests
+Assam,26832,1.12,548.3,0.74,0.81,0.69,high,175,Heavy agricultural pressure on forest fringe
+Bihar,3612,0.89,58.8,0.61,0.72,0.65,high,95,Highly fragmented; low permanence
+Chhattisgarh,55717,0.61,621.8,0.78,0.74,0.66,medium,158,Sal and teak dominant; mining pressure
+Goa,2224,0.35,14.2,0.77,0.63,0.58,low,182,High canopy quality; tourism pressure
+Gujarat,14873,0.28,75.6,0.65,0.59,0.61,low,88,Dry deciduous; low carbon density
+Haryana,1584,0.51,14.8,0.55,0.64,0.60,medium,72,Highly degraded; mostly scrub
+Himachal Pradesh,15434,0.22,62.0,0.82,0.61,0.73,low,168,Temperate conifer; good permanence
+Jharkhand,23611,0.78,336.5,0.72,0.76,0.68,high,142,Sal forests under coal mining pressure
+Karnataka,37549,0.39,268.2,0.76,0.67,0.64,medium,171,Western Ghats anchor; eastern dry zones
+Kerala,20312,0.31,115.0,0.84,0.64,0.70,low,198,High biodiversity; good legal protection
+Madhya Pradesh,77414,0.52,737.8,0.75,0.71,0.65,medium,135,Largest forest state; tigers, sal, teak
+Maharashtra,50778,0.44,407.8,0.73,0.69,0.63,medium,132,Sahyadri + Vidarbha forests
+Manipur,17218,1.04,325.8,0.71,0.79,0.68,high,172,Shifting cultivation pressure
+Meghalaya,17321,1.38,437.2,0.76,0.86,0.74,high,192,Community forests; high deforestation threat from jhum cultivation and coal mining; Khasi Hills REDD+ pilot ongoing
+Mizoram,18910,1.21,418.0,0.74,0.82,0.71,high,178,Jhum cycle pressure; some community-led recovery
+Nagaland,13310,0.97,235.4,0.72,0.78,0.67,high,181,High biodiversity; community forest management growing
+Odisha,51619,0.55,518.5,0.77,0.72,0.66,medium,148,Simlipal and other reserves anchor
+Punjab,1837,0.61,20.5,0.53,0.65,0.59,medium,68,Mostly plantation; low natural cover
+Rajasthan,16655,0.19,57.8,0.58,0.56,0.60,low,62,Arid; mostly scrub and thorn forest
+Sikkim,3341,0.14,8.5,0.91,0.58,0.72,low,224,High Himalayan forest; excellent permanence
+Tamil Nadu,26419,0.36,173.2,0.79,0.66,0.63,low,162,Nilgiris anchor; good legal framework
+Telangana,21214,0.48,185.8,0.69,0.67,0.62,medium,128,Moderate pressure; some recovery
+Tripura,7726,0.88,124.2,0.70,0.77,0.66,high,168,Rubber and agricultural encroachment
+Uttarakhand,24303,0.27,120.5,0.85,0.63,0.72,low,178,Himalayan temperate; strong legal protection
+Uttar Pradesh,14689,0.72,193.5,0.62,0.70,0.63,high,98,Highly fragmented; terai under pressure
+West Bengal,16847,0.65,199.5,0.71,0.73,0.64,medium,156,Sundarbans (mangrove) + terai
+Andaman and Nicobar Islands,6743,0.14,17.1,0.93,0.55,0.68,low,238,Pristine island forests; highest permanence
+_default,20000,0.45,100,0.70,0.65,0.60,medium,140,National average defaults for unknown states

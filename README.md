@@ -116,6 +116,29 @@ Public, Immutable Audit Record
 
 ---
 
+## 📂 Data Management & Caching
+
+ProofOfCarbon uses a multi-tier spatial data strategy to ensure high performance and reliability:
+
+### 1. Static Reference Data
+The following files are included in the repository to provide an initial baseline:
+- `data/reference/india_forest_cover.geojson`: National forest cover (derived from OSM).
+- `data/reference/india_protected_areas.geojson`: Map of national parks and reserves.
+- `data/reference/*.csv`: Permanence scores and historical deforestation rates.
+
+### 2. On-Demand State Caching
+When a project is analyzed in a new state, the system automatically fetches the latest forest geometry from the **OSM Overpass API**.
+- **Performance**: The first fetch for a state takes ~30-90s.
+- **Caching**: Results are saved to `backend/data/reference/cache/forest_<state>.geojson`. Subsequent requests for the same state are nearly instantaneous (<1s).
+
+### 3. Dynamic AOI (Area of Interest) Files
+During verification, the system clips the state-level data to the specific project boundary (BBox).
+- **Files**: `forest_aoi_<state>.geojson` are generated dynamically.
+- **Purpose**: These localized subsets are used for the final spatial calculation and are sent to the frontend for visualization on the results map.
+- **Latency**: Using AOI subsets significantly reduces the payload size and improves UI rendering speed.
+
+---
+
 ## 🏆 Why ProofOfCarbon Matters
 
 - Prevents greenwashing with objective verification
@@ -130,6 +153,69 @@ Public, Immutable Audit Record
 
 This project is a prototype built for demonstration and research purposes.  
 Satellite analysis and machine learning components are architecturally correct but may be mocked or simulated.
+
+---
+
+---
+
+## 🚀 Getting Started
+
+Follow these steps to set up ProofOfCarbon on your local machine.
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/ritigya03/ProofOfCarbon.git
+cd ProofOfCarbon
+```
+
+### 2. Backend Setup (FastAPI)
+Prerequisites: **Python 3.10+**
+
+```bash
+cd backend
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+**Configure Environment:**
+Create a `.env` file in the `backend/` directory (see [.env.example](.env.example) for reference):
+```env
+GROQ_API_KEY=your_key_here  # or OPENAI_API_KEY
+RPC_URL=https://rpc-amoy.polygon.technology
+GEE_SERVICE_ACCOUNT_EMAIL=...
+GEE_SERVICE_ACCOUNT_KEY='{"type": "service_account", ...}'
+```
+
+**Run Backend:**
+```bash
+python api/main.py
+# Server will start on http://localhost:8000
+```
+
+### 3. Frontend Setup (React + Vite)
+Prerequisites: **Node.js 18+**
+
+```bash
+cd ../frontend
+npm install
+```
+
+**Configure Environment:**
+Create a `.env` file in the `frontend/` directory:
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+**Run Frontend:**
+```bash
+npm run dev
+# App will be live at http://localhost:8080
+```
 
 ---
 

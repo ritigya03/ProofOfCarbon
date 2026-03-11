@@ -4,8 +4,19 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+# Ignore all data/ contents
 data/
 .data/
+
+# But allow these specific reference GeoJSONs for the project to work!
+!data/reference/india_forest_cover.geojson
+!data/reference/india_protected_areas.geojson
+!data/reference/*.csv
+
+# Ignore caches and local results
+data/reference/cache/
+data/results/
+
 # GEE service account credentials — never commit
 gee-service-account-key.json
 *-service-account-key.json

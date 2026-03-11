@@ -1,0 +1,15 @@
+forest_type,permanence_score,avg_carbon_density_tC_ha,ndvi_healthy_threshold,canopy_cover_threshold_pct,typical_threat_level,notes
+dense,0.82,195,0.65,70,medium,Closed canopy moist/dry deciduous and evergreen; high carbon stock
+mangrove,0.79,210,0.70,75,high,Coastal; highly threatened by development and sea-level rise
+temperate,0.85,185,0.60,60,low,Himalayan temperate conifer and broadleaf; good legal protection
+sal,0.77,155,0.62,68,medium,Sal-dominated eastern Indian forests; mining and agriculture pressure
+dry,0.65,98,0.45,50,medium,Dry deciduous; lower carbon density; seasonal NDVI variation
+scrub,0.48,45,0.30,30,high,Degraded land; low permanence; ARR candidate
+mangrove_dense,0.81,220,0.72,80,high,Dense mangrove; highest carbon density; saltwater intrusion risk
+montane,0.88,168,0.58,65,low,High altitude cloud forest; good permanence; low pressure
+subtropical,0.80,188,0.68,72,medium,Subtropical broadleaf; Northeast India dominant type
+savanna,0.58,72,0.38,40,medium,Open woodland; lower carbon density
+moderately_dense,0.73,135,0.55,55,medium,Medium canopy cover; mix of species
+moist_deciduous,0.76,165,0.62,65,medium,Highly productive deciduous forest
+open,0.62,85,0.40,40,medium,Open forest canopy
+_default,0.70,120,0.50,50,medium,Default values for unknown forest types
