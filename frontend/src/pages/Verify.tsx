@@ -16,7 +16,7 @@ const agentSteps = [
   { icon: ShieldCheck,  name: "Verifier Agent",           duration: 1000 },
 ];
 
-const API_URL = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 // ── Collapsible section wrapper ──────────────────────────────────────────────
 const CollapsibleSection = ({
@@ -100,6 +100,7 @@ const Verify = () => {
 
   // ── Optional metadata fields (controlled) ──
   const [projectName, setProjectName]     = useState("");
+  const [companyName, setCompanyName]     = useState("");
   const [country, setCountry]             = useState("");
   const [projectType, setProjectType]     = useState("");
   const [startYear, setStartYear]         = useState("");
@@ -139,6 +140,7 @@ const Verify = () => {
       // Build enriched claim string from optional fields
       const extras = [
         projectName   && `Project: ${projectName}`,
+        companyName   && `Company: ${companyName}`,
         country       && `Country: ${country}`,
         projectType   && `Type: ${projectType}`,
         (startYear || endYear) && `Period: ${startYear}–${endYear}`,
@@ -275,6 +277,8 @@ const Verify = () => {
             <CollapsibleSection title="Additional Metadata">
               <Field id="project_name" label="Project Name" placeholder="e.g. Kodagu Reforestation"
                 value={projectName} onChange={setProjectName} disabled={running} />
+              <Field id="company_name" label="Company Name" placeholder="e.g. GreenFuture Ltd"
+                value={companyName} onChange={setCompanyName} disabled={running} />
               <Field id="country" label="Country" placeholder="e.g. India"
                 value={country} onChange={setCountry} disabled={running} />
               <SelectField id="project_type" label="Project Type"

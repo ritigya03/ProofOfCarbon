@@ -15,7 +15,6 @@ import geopandas as gpd
 from pyproj import Transformer
 import numpy as np
 
-# Enable KML driver in Fiona
 fiona.drvsupport.supported_drivers["KML"] = "rw"
 fiona.drvsupport.supported_drivers["LIBKML"] = "rw"
 
@@ -32,6 +31,13 @@ def parse_kmz(kmz_path: str) -> gpd.GeoDataFrame:
     Returns:
         GeoDataFrame with geometry column + any KML attributes
     """
+    # Ensure drivers are registered in the current thread/process
+    try:
+        fiona.drvsupport.supported_drivers["KML"] = "rw"
+        fiona.drvsupport.supported_drivers["LIBKML"] = "rw"
+    except Exception as e:
+        logger.warning(f"Failed to register KML drivers: {e}")
+
     with zipfile.ZipFile(kmz_path, "r") as kmz:
         with tempfile.TemporaryDirectory() as tmpdir:
             kmz.extractall(tmpdir)
@@ -44,18 +50,45 @@ def parse_kmz(kmz_path: str) -> gpd.GeoDataFrame:
             logger.info(f"Parsing KML: {kml_path}")
 
             # Try reading all layers
-            layers = fiona.listlayers(kml_path)
+            try:
+                layers = fiona.listlayers(kml_path)
+                logger.info(f"Fiona layers: {layers}")
+            except Exception as e:
+                logger.error(f"Fiona failed to list layers: {e}")
+                layers = [None] # Try reading default layer
+                
             gdfs = []
             for layer in layers:
-                try:
-                    gdf = gpd.read_file(kml_path, driver="KML", layer=layer)
-                    if not gdf.empty and gdf.geometry.notna().any():
-                        gdfs.append(gdf)
-                except Exception as e:
-                    logger.warning(f"Could not read layer '{layer}': {e}")
+                # Try multiple drivers: KML, LIBKML, or None
+                success = False
+                for driver in ["KML", "LIBKML", None]:
+                    try:
+                        logger.info(f"Attempting read with driver={driver}, layer={layer}, engine=fiona")
+                        # Force engine="fiona" because pyogrio is unreliable with KML on some systems
+                        gdf = gpd.read_file(kml_path, driver=driver, layer=layer, engine="fiona")
+                        if not gdf.empty and gdf.geometry.notna().any():
+                            gdfs.append(gdf)
+                            logger.info(f"Successfully read layer '{layer}' with driver {driver}")
+                            success = True
+                            break
+                    except Exception as e:
+                        logger.debug(f"Driver {driver} failed for layer '{layer}': {e}")
+                
+                if not success:
+                    logger.warning(f"All drivers failed for layer '{layer}'")
 
             if not gdfs:
-                raise ValueError("No valid geometries found in KML")
+                # One last attempt without specific layer
+                try:
+                    logger.info("One last attempt reading without layer/driver (fiona engine)...")
+                    gdf = gpd.read_file(kml_path, engine="fiona")
+                    if not gdf.empty:
+                        gdfs.append(gdf)
+                except Exception as e:
+                    logger.error(f"Final fallback failed: {e}")
+
+            if not gdfs:
+                raise ValueError("No valid geometries found in KML after trying multiple drivers")
 
             combined = gpd.GeoDataFrame(
                 gpd.pd.concat(gdfs, ignore_index=True),

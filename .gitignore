@@ -1,0 +1,40 @@
+# Environment variables
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Dependency directories
+node_modules/
+backend/venv/
+backend/.venv/
+
+# Build outputs
+frontend/dist/
+frontend/dist-ssr/
+
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# OS related
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Project specific
+backend/data/cache/
+backend/gee-service-account-key.json
+backend/*-service-account-key.json

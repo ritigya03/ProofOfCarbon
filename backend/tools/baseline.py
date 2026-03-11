@@ -6,8 +6,10 @@ Would this forest have survived WITHOUT the carbon credit funding?
 If yes → the credits are not additional → they are fraudulent.
 
 Data used:
-  Real path:  India State of Forest Report (FSI) historical records + state deforestation rates
-  Mock path:  Deterministic lookup tables based on real published India statistics
+  State deforestation rates: data/reference/india_state_deforestation.csv
+    Sources: FSI India State of Forest Report 2023, MoEFCC Annual Report 2022-23, WRI GFW India
+  Forest type permanence:   data/reference/forest_type_permanence.csv
+    Sources: IPCC Guidelines for National GHG Inventories (2006, 2019), MoEFCC Forest Carbon Stock data
 
 Key concepts:
   - Deforestation pressure:  How likely was this forest to be cleared without intervention?
@@ -16,105 +18,129 @@ Key concepts:
   - Permanence risk: How likely is the sequestered carbon to be re-released?
 """
 
+import csv
 import logging
 import os
-import json
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# India State-Level Deforestation Statistics
-# Sources:
-#   FSI India State of Forest Report 2021 & 2023
-#   MoEFCC Annual Report 2022-23
-#   WRI Global Forest Watch India data
-#
-# Format: state → {annual_loss_rate_pct, pressure_level, primary_drivers, data_year}
-# annual_loss_rate_pct = average % of forest area lost per year (2015-2023)
-# ─────────────────────────────────────────────────────────────────────────────
-
-INDIA_STATE_DEFORESTATION = {
-    # Northeast — highest pressure due to jhum (shifting cultivation) + infrastructure
-    "Arunachal Pradesh":   {"annual_loss_pct": 0.41, "pressure": "HIGH",   "drivers": ["jhum_cultivation", "infrastructure", "encroachment"]},
-    "Manipur":             {"annual_loss_pct": 0.89, "pressure": "CRITICAL","drivers": ["jhum_cultivation", "insurgency_related_clearing", "infrastructure"]},
-    "Meghalaya":           {"annual_loss_pct": 0.62, "pressure": "HIGH",   "drivers": ["coal_mining", "jhum_cultivation", "limestone_quarrying"]},
-    "Mizoram":             {"annual_loss_pct": 0.55, "pressure": "HIGH",   "drivers": ["jhum_cultivation", "bamboo_harvesting"]},
-    "Nagaland":            {"annual_loss_pct": 0.73, "pressure": "HIGH",   "drivers": ["jhum_cultivation", "infrastructure", "illegal_logging"]},
-    "Tripura":             {"annual_loss_pct": 0.38, "pressure": "MEDIUM", "drivers": ["agricultural_expansion", "rubber_plantation"]},
-    "Assam":               {"annual_loss_pct": 0.44, "pressure": "HIGH",   "drivers": ["tea_garden_expansion", "agricultural_encroachment", "floods"]},
-    "Sikkim":              {"annual_loss_pct": 0.12, "pressure": "LOW",    "drivers": ["hydropower_projects", "road_construction"]},
-
-    # Central India — significant pressure from mining + agriculture
-    "Madhya Pradesh":      {"annual_loss_pct": 0.28, "pressure": "MEDIUM", "drivers": ["mining", "agricultural_expansion", "fuelwood"]},
-    "Chhattisgarh":        {"annual_loss_pct": 0.31, "pressure": "MEDIUM", "drivers": ["mining", "left_wing_extremism_area_clearing", "agriculture"]},
-    "Jharkhand":           {"annual_loss_pct": 0.35, "pressure": "MEDIUM", "drivers": ["mining", "industrial_expansion", "fuelwood"]},
-    "Odisha":              {"annual_loss_pct": 0.29, "pressure": "MEDIUM", "drivers": ["mining", "agricultural_expansion", "cyclone_damage"]},
-
-    # Western Ghats — moderate pressure, high biodiversity value
-    "Karnataka":           {"annual_loss_pct": 0.19, "pressure": "MEDIUM", "drivers": ["plantation_conversion", "encroachment", "infrastructure"]},
-    "Kerala":              {"annual_loss_pct": 0.14, "pressure": "LOW",    "drivers": ["plantation_conversion", "landslides", "urbanisation"]},
-    "Tamil Nadu":          {"annual_loss_pct": 0.21, "pressure": "MEDIUM", "drivers": ["encroachment", "plantation_conversion", "urban_expansion"]},
-    "Goa":                 {"annual_loss_pct": 0.16, "pressure": "MEDIUM", "drivers": ["mining", "infrastructure", "tourism_development"]},
-    "Maharashtra":         {"annual_loss_pct": 0.22, "pressure": "MEDIUM", "drivers": ["agricultural_expansion", "infrastructure", "encroachment"]},
-
-    # Himalayan states — lower pressure but high permanence risk (landslides, fire)
-    "Uttarakhand":         {"annual_loss_pct": 0.17, "pressure": "LOW",    "drivers": ["forest_fire", "infrastructure", "tourism"]},
-    "Himachal Pradesh":    {"annual_loss_pct": 0.11, "pressure": "LOW",    "drivers": ["forest_fire", "apple_orchard_expansion", "infrastructure"]},
-    "Jammu & Kashmir":     {"annual_loss_pct": 0.09, "pressure": "LOW",    "drivers": ["forest_fire", "infrastructure"]},
-
-    # East India
-    "West Bengal":         {"annual_loss_pct": 0.26, "pressure": "MEDIUM", "drivers": ["agricultural_expansion", "urbanisation", "cyclone_damage"]},
-    "Bihar":               {"annual_loss_pct": 0.18, "pressure": "LOW",    "drivers": ["fuelwood", "agricultural_expansion"]},
-
-    # Dry / low forest states
-    "Rajasthan":           {"annual_loss_pct": 0.07, "pressure": "LOW",    "drivers": ["overgrazing", "fuelwood", "drought"]},
-    "Gujarat":             {"annual_loss_pct": 0.13, "pressure": "LOW",    "drivers": ["industrial_expansion", "agricultural_conversion"]},
-    "Andhra Pradesh":      {"annual_loss_pct": 0.24, "pressure": "MEDIUM", "drivers": ["agricultural_expansion", "infrastructure", "encroachment"]},
-    "Telangana":           {"annual_loss_pct": 0.20, "pressure": "MEDIUM", "drivers": ["urbanisation", "agricultural_expansion"]},
-
-    # Default for unmapped/union territories
-    "_default":            {"annual_loss_pct": 0.25, "pressure": "MEDIUM", "drivers": ["unknown"]},
-}
+# ── Resolve default data paths ────────────────────────────────────────────────
+# Paths can be overridden by env vars for flexibility in different environments.
+_THIS_DIR   = Path(__file__).parent.parent   # backend/
+_STATE_CSV  = Path(os.getenv(
+    "STATE_DEFORESTATION_CSV",
+    str(_THIS_DIR / "data" / "reference" / "india_state_deforestation.csv")
+))
+_FOREST_CSV = Path(os.getenv(
+    "FOREST_TYPE_CSV",
+    str(_THIS_DIR / "data" / "reference" / "forest_type_permanence.csv")
+))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Forest type permanence risk
-# How likely is carbon stored in this forest type to be re-released
-# (fire, disease, drought, illegal logging)?
-# Sources: IPCC Guidelines for National Greenhouse Gas Inventories (2006, 2019)
-#          MoEFCC Forest Carbon Stock data
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Loaders (run once at module import) ───────────────────────────────────────
 
-FOREST_TYPE_PERMANENCE_RISK = {
-    "dense":            {"permanence_risk": "LOW",    "reversal_risk_pct": 5,  "avg_carbon_t_ha": 120},
-    "moderately_dense": {"permanence_risk": "LOW",    "reversal_risk_pct": 8,  "avg_carbon_t_ha": 75},
-    "open":             {"permanence_risk": "MEDIUM", "reversal_risk_pct": 18, "avg_carbon_t_ha": 35},
-    "scrub":            {"permanence_risk": "HIGH",   "reversal_risk_pct": 35, "avg_carbon_t_ha": 12},
-    "mangrove":         {"permanence_risk": "MEDIUM", "reversal_risk_pct": 15, "avg_carbon_t_ha": 160},
-    "dry_deciduous":    {"permanence_risk": "HIGH",   "reversal_risk_pct": 28, "avg_carbon_t_ha": 45},
-    "moist_deciduous":  {"permanence_risk": "LOW",    "reversal_risk_pct": 10, "avg_carbon_t_ha": 90},
-    "temperate":        {"permanence_risk": "LOW",    "reversal_risk_pct": 8,  "avg_carbon_t_ha": 105},
-    "sal":              {"permanence_risk": "LOW",    "reversal_risk_pct": 10, "avg_carbon_t_ha": 95},
-    "_default":         {"permanence_risk": "MEDIUM", "reversal_risk_pct": 20, "avg_carbon_t_ha": 60},
-}
+def _load_state_data() -> dict:
+    """
+    Load state-level deforestation data from CSV.
+    Returns a dict keyed by state name (title-cased).
+    Format: { "Karnataka": { "annual_loss_pct": 0.19, "pressure": "MEDIUM", "drivers": [...] }, ... }
+    """
+    if not _STATE_CSV.exists():
+        raise FileNotFoundError(
+            f"State deforestation CSV not found at: {_STATE_CSV}\n"
+            f"  Expected: data/reference/india_state_deforestation.csv\n"
+            f"  Override path with env var STATE_DEFORESTATION_CSV"
+        )
 
+    data = {}
+    with open(_STATE_CSV, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            key = row["state"].strip()
+            # Support both old and new schemas
+            loss_pct = row.get("annual_deforestation_rate_pct") or row.get("annual_loss_pct", "0.2")
+            pressure = row.get("deforestation_pressure_level") or row.get("pressure", "MEDIUM")
+            drivers_raw = row.get("drivers") or row.get("notes", "General human pressure")
+            
+            data[key] = {
+                "annual_loss_pct": float(loss_pct),
+                "pressure":        pressure.strip().upper(),
+                "drivers":         [d.strip() for d in drivers_raw.split("|")],
+                "data_year":       row.get("data_year", "2023").strip(),
+            }
+
+    logger.info(f"[baseline] Loaded {len(data)} state rows from {_STATE_CSV.name}")
+    return data
+
+
+def _load_forest_type_data() -> dict:
+    """
+    Load forest type permanence data from CSV.
+    Returns a dict keyed by forest type name.
+    Format: { "dense": { "permanence_risk": "LOW", "reversal_risk_pct": 5, "avg_carbon_t_ha": 120 }, ... }
+    """
+    if not _FOREST_CSV.exists():
+        raise FileNotFoundError(
+            f"Forest type CSV not found at: {_FOREST_CSV}\n"
+            f"  Expected: data/reference/forest_type_permanence.csv\n"
+            f"  Override path with env var FOREST_TYPE_CSV"
+        )
+
+    data = {}
+    with open(_FOREST_CSV, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            key = row["forest_type"].strip()
+            # Support both old and new schemas
+            score = float(row.get("permanence_score") or 0.75)
+            carbon = int(float(row.get("avg_carbon_density_tC_ha") or row.get("avg_carbon_t_ha", 150)))
+            
+            # Map score to risk (low risk if high score)
+            risk_level = "LOW" if score > 0.7 else "MEDIUM" if score > 0.4 else "HIGH"
+            reversal_pct = int((1.0 - score) * 100)
+
+            data[key] = {
+                "permanence_risk":    risk_level,
+                "reversal_risk_pct":  reversal_pct,
+                "avg_carbon_t_ha":    carbon,
+            }
+
+    logger.info(f"[baseline] Loaded {len(data)} forest type rows from {_FOREST_CSV.name}")
+    return data
+
+
+# Loaded once at module import — same performance as Python dicts
+INDIA_STATE_DEFORESTATION   = _load_state_data()
+FOREST_TYPE_PERMANENCE_RISK = _load_forest_type_data()
+
+
+# ── Public helpers ────────────────────────────────────────────────────────────
 
 def get_state_baseline(state: str) -> dict:
     """
     Returns historical deforestation statistics for an Indian state.
     Normalises state name for case/spacing issues.
+    Falls back to _default row if state is not in the CSV.
     """
-    # Normalise: "karnataka" → "Karnataka", "WEST BENGAL" → "West Bengal"
     normalised = state.strip().title()
-    data = INDIA_STATE_DEFORESTATION.get(normalised, INDIA_STATE_DEFORESTATION["_default"])
+    # Safe lookup with fallback to first row or reasonable defaults if _default is missing
+    if normalised in INDIA_STATE_DEFORESTATION:
+        data = INDIA_STATE_DEFORESTATION[normalised]
+    elif "_default" in INDIA_STATE_DEFORESTATION:
+        data = INDIA_STATE_DEFORESTATION["_default"]
+    else:
+        # Emergency fallback if CSV is mangled
+        data = {
+            "annual_loss_pct": 0.35,
+            "pressure": "MEDIUM",
+            "drivers": ["General human pressure"],
+            "data_year": "2023"
+        }
     return {
-        "state": normalised,
-        "annual_loss_pct": data["annual_loss_pct"],
+        "state":                  normalised,
+        "annual_loss_pct":       data["annual_loss_pct"],
         "deforestation_pressure": data["pressure"],
-        "primary_drivers": data["drivers"],
-        "data_source": "FSI_ISFR_2023_mock",  # replace with "FSI_ISFR_2023" when real data loaded
+        "primary_drivers":       data["drivers"],
+        "data_source":           "FSI_ISFR_2023_WRI_GFW",
     }
 
 
@@ -122,31 +148,45 @@ def get_forest_type_stats(forest_type: str) -> dict:
     """
     Returns permanence risk and carbon stock data for a given forest type.
     Tries to match forest_type string to known keys (fuzzy).
+    Falls back to _default row if no match.
     """
     ft = forest_type.lower().replace(" ", "_").replace("-", "_") if forest_type else "_default"
 
     # Fuzzy match common variations
     mapping = {
-        "evergreen": "dense",
-        "semi_evergreen": "dense",
-        "tropical_wet": "dense",
-        "dense_forest": "dense",
-        "very_dense": "dense",
-        "moderate": "moderately_dense",
-        "mixed": "moderately_dense",
-        "open_forest": "open",
-        "degraded": "scrub",
-        "plantation": "open",
-        "teak": "moist_deciduous",
-        "bamboo": "open",
+        "evergreen":        "dense",
+        "semi_evergreen":   "dense",
+        "tropical_wet":     "dense",
+        "dense_forest":     "dense",
+        "very_dense":       "dense",
+        "moderate":         "moderately_dense",
+        "mixed":            "moderately_dense",
+        "open_forest":      "open",
+        "degraded":         "scrub",
+        "plantation":       "open",
+        "teak":             "moist_deciduous",
+        "bamboo":           "open",
+        "native":           "moist_deciduous",
+        "broadleaf":        "moist_deciduous",
+        "native_broadleaf": "moist_deciduous",
     }
+    # Safe lookup for forest types
     resolved = mapping.get(ft, ft)
-    data = FOREST_TYPE_PERMANENCE_RISK.get(resolved, FOREST_TYPE_PERMANENCE_RISK["_default"])
+    if resolved in FOREST_TYPE_PERMANENCE_RISK:
+        data = FOREST_TYPE_PERMANENCE_RISK[resolved]
+    elif "_default" in FOREST_TYPE_PERMANENCE_RISK:
+        data = FOREST_TYPE_PERMANENCE_RISK["_default"]
+    else:
+        data = {
+            "permanence_risk": "MEDIUM",
+            "reversal_risk_pct": 15,
+            "avg_carbon_t_ha": 150
+        }
 
     return {
         "forest_type_resolved": resolved,
-        "permanence_risk": data["permanence_risk"],
-        "reversal_risk_pct": data["reversal_risk_pct"],
+        "permanence_risk":      data["permanence_risk"],
+        "reversal_risk_pct":    data["reversal_risk_pct"],
         "avg_carbon_stock_t_ha": data["avg_carbon_t_ha"],
     }
 
@@ -157,12 +197,18 @@ def compute_additionality_metrics(
     claimed_ha: float,
     project_start_year: int = 2020,
     credit_period_years: int = 10,
+    project_type: str = "REDD+",
 ) -> dict:
     """
     Computes quantitative additionality metrics.
 
+    For REDD+: 
     Additionality = the forest would NOT have survived without the project.
     Calculated as: projected loss without project over the credit period.
+
+    For ARR:
+    Additionality = the forest would NOT have grown back without the project.
+    Calculated as: sequestration potential minus counterfactual natural regeneration.
 
     Args:
         state: Indian state name
@@ -170,9 +216,10 @@ def compute_additionality_metrics(
         claimed_ha: total claimed project area in hectares
         project_start_year: year the project claims to have started
         credit_period_years: how many years of credits are being claimed
+        project_type: "ARR" or "REDD+"
 
     Returns:
-        dict with baseline scenario, counterfactual loss, and additionality score
+        dict with baseline scenario, counterfactual loss/growth, and additionality score
     """
     state_data   = get_state_baseline(state)
     ft_data      = get_forest_type_stats(forest_type)
@@ -182,42 +229,84 @@ def compute_additionality_metrics(
     reversal_risk_pct = ft_data["reversal_risk_pct"]
     carbon_t_ha       = ft_data["avg_carbon_stock_t_ha"]
 
-    # Projected forest loss over credit period WITHOUT intervention
-    counterfactual_loss_ha = claimed_ha * annual_loss_rate * credit_period_years
-    counterfactual_loss_ha = min(counterfactual_loss_ha, claimed_ha)  # can't lose more than you have
+    flags = []
 
-    # Projected carbon at risk (tonnes CO2e)
-    carbon_at_risk_t = counterfactual_loss_ha * carbon_t_ha
+    if project_type == "ARR":
+        # ARR Calculation
+        # Counterfactual: How much would it have grown naturally?
+        # Higher pressure (human activity) = lower natural regeneration potential.
+        pressure_regeneration_map = {
+            "CRITICAL": 0.4, # tC/ha/yr - Highly unlikely to recover naturally
+            "HIGH":     0.8,
+            "MEDIUM":   1.2,
+            "LOW":      2.0  # tC/ha/yr - Likely to recover if left alone
+        }
+        counterfactual_regeneration_rate = pressure_regeneration_map.get(pressure, 1.2)
+        counterfactual_growth_t = claimed_ha * counterfactual_regeneration_rate * credit_period_years
+        
+        # Project potential: Use the specific carbon stock for this forest type.
+        # Mangroves and Moist Deciduous sequester much faster than Scrub/Dry.
+        # We assume it takes 20 years to reach "average" stock for a new plantation (avg/20 per yr).
+        sequestration_rate_per_yr = carbon_t_ha / 20.0
+        project_potential_t = claimed_ha * sequestration_rate_per_yr * credit_period_years
+        
+        # Additionality is the "delta" created by the project intervention
+        additionality_t = max(0.0, project_potential_t - counterfactual_growth_t)
+        
+        # Additionality Score (%)
+        additionality_score = min(100.0, (additionality_t / project_potential_t * 100)) if project_potential_t > 0 else 0.0
+        
+        counterfactual_loss_ha = 0 # Not applicable to ARR
+        carbon_at_risk_t = additionality_t # In ARR, the "risk" is the lost sequestration potential
+        
+        if additionality_score < 40:
+            flags.append(
+                f"High natural regeneration potential in {state} ({counterfactual_regeneration_rate} tC/ha/yr) — "
+                f"ARR additionality score ({additionality_score:.1f}) is weak."
+            )
+        else:
+            flags.append(
+                f"Low natural regeneration baseline in {state} ({counterfactual_regeneration_rate} tC/ha/yr) — "
+                f"strong additionality case for ARR."
+            )
 
-    # Additionality score: how much of the claimed area is genuinely under threat
-    # HIGH pressure + HIGH loss rate = HIGH additionality (credits are justified)
-    # LOW pressure + LOW loss rate = LOW additionality (forest would have survived anyway)
-    additionality_score = min(100, (annual_loss_rate * 100 * 10))  # scaled 0-100
+    else:
+        # REDD+ Calculation (Existing)
+        # Projected forest loss over credit period WITHOUT intervention
+        counterfactual_loss_ha = claimed_ha * annual_loss_rate * credit_period_years
+        counterfactual_loss_ha = min(counterfactual_loss_ha, claimed_ha)
 
-    # Permanence buffer: % of credits that should be held in a buffer pool
-    # to account for reversal risk (IPCC / Verra VCS methodology)
+        # Projected carbon at risk (tonnes CO2e)
+        carbon_at_risk_t = counterfactual_loss_ha * carbon_t_ha
+
+        # Additionality score: 0-100 based on threat
+        # If loss is 0.5%/yr, score is 0.5 * 80 * 2 = 80. 
+        # If loss is 1.15%/yr (Meghalaya), score is 1.15 * 80 * 1 = 92.
+        additionality_score = min(100.0, (annual_loss_rate * 100 * 80))
+
+        if pressure == "LOW" and annual_loss_rate < 0.15:
+            flags.append(
+                f"Low deforestation pressure in {state} ({annual_loss_rate*100:.2f}%/yr) — "
+                f"additionality may be weak. Forest likely to survive without intervention."
+            )
+        if pressure == "CRITICAL":
+            flags.append(
+                f"CRITICAL deforestation pressure in {state} — "
+                f"strong additionality case if project is genuine."
+            )
+        if counterfactual_loss_ha < claimed_ha * 0.05:
+            flags.append(
+                "Very low projected forest loss in baseline scenario — "
+                "carbon credits may represent minimal real-world impact."
+            )
+
+    # Permanence buffer %
     buffer_pct = reversal_risk_pct
 
-    flags = []
-    if pressure == "LOW" and annual_loss_rate < 0.15:
-        flags.append(
-            f"Low deforestation pressure in {state} ({annual_loss_rate*100:.2f}%/yr) — "
-            f"additionality may be weak. Forest likely to survive without intervention."
-        )
-    if pressure == "CRITICAL":
-        flags.append(
-            f"CRITICAL deforestation pressure in {state} — "
-            f"strong additionality case if project is genuine."
-        )
     if ft_data["permanence_risk"] == "HIGH":
         flags.append(
             f"{ft_data['forest_type_resolved'].replace('_', ' ').title()} forest has high reversal risk "
             f"({reversal_risk_pct}%) — significant buffer pool required."
-        )
-    if counterfactual_loss_ha < claimed_ha * 0.05:
-        flags.append(
-            "Very low projected forest loss in baseline scenario — "
-            "carbon credits may represent minimal real-world impact."
         )
 
     return {
@@ -245,5 +334,6 @@ def compute_additionality_metrics(
 
         # Flags
         "baseline_flags":             flags,
-        "data_source":                "FSI_ISFR_2023_WRI_GFW_mock",
+        "data_source":                "FSI_ISFR_2023_WRI_GFW",
+        "project_type":               project_type
     }

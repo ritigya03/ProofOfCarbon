@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
+
 
 
 class AnalyzeResponse(BaseModel):
@@ -16,6 +17,24 @@ class AnalyzeResponse(BaseModel):
     overlap_percent: float
     protected_area_overlap_ha: float = 0.0
 
+    # ── Bounding box — used by the frontend satellite map ─────────────────────
+    bbox: Optional[dict] = None           # {min_lon, min_lat, max_lon, max_lat}
+
+    # ── Stage-specific scores (preserved before Verifier overwrites trust_score) ─
+    spatial_trust_score: Optional[float] = None   # ProjectAnalysisAgent's own score
+
+    # ── Reference land-cover GeoJSON (fetched from OSM/Overpass) ─────────────
+    # Contains scrub, forest, plantation, orchard polygons overlapping the bbox.
+    # Passed to SatelliteMap for display as coloured overlays.
+    reference_geojson: Optional[dict] = None
+
+    # ── Area mismatch (text description vs KMZ measurement) ──────────────────
+    text_claimed_ha: Optional[float] = None    # ha extracted from company text
+    area_mismatch_pct: Optional[float] = None  # % difference vs KMZ area
+
+    # ── Satellite source label (shown in the NDVI card badge) ────────────────
+    ndvi_data_source: Optional[str] = None
+
     # ── Satellite fields (from SatelliteEvidenceAgent) ────────────────────────
     ndvi_current_mean: Optional[float] = None
     ndvi_historical_mean: Optional[float] = None
@@ -27,12 +46,32 @@ class AnalyzeResponse(BaseModel):
     satellite_flags: list[str] = []
     satellite_summary: Optional[str] = None
 
+    # ── Historical Baseline fields (from HistoricalBaselineAgent) ────────────
+    additionality_verdict: Optional[str] = None    # STRONG / MODERATE / WEAK / NEGLIGIBLE
+    baseline_risk_level: Optional[str] = None      # LOW / MEDIUM / HIGH / CRITICAL
+    baseline_trust_modifier: Optional[float] = None
+    additionality_score: Optional[float] = None
+    deforestation_pressure: Optional[str] = None   # LOW / MEDIUM / HIGH / CRITICAL
+    counterfactual_loss_ha: Optional[float] = None
+    carbon_at_risk_tonnes_co2e: Optional[float] = None
+    counterfactual_assessment: Optional[str] = None
+    permanence_assessment: Optional[str] = None
+    additionality_flags: list[str] = []
+    baseline_summary: Optional[str] = None
+
     # ── Fraud detection fields (from FraudDetectionAgent) ────────────────────
     anomaly_score: Optional[float] = None
     fraud_risk_level: Optional[str] = None
     fraud_patterns: Optional[dict] = None
     fraud_flags: list[str] = []
     fraud_summary: Optional[str] = None
+
+    # ── ML model predictions (from FraudDetectionAgent ML layer) ──────────
+    ml_anomaly_score: Optional[float] = None
+    ml_fraud_risk_level: Optional[str] = None
+    ml_verdict: Optional[str] = None
+    ml_confidence: Optional[float] = None
+    ml_class_probabilities: Optional[dict] = None
 
     # ── Final verdict (from VerifierAgent) ───────────────────────────────────
     final_verdict: Optional[str] = (
@@ -53,9 +92,34 @@ class AnalyzeResponse(BaseModel):
     # ── All accumulated flags from all stages ─────────────────────────────────
     all_flags: list[str] = []
     analysis_flags: list[str] = []
+
+    # ── Blockchain proof (from Stage 5 — on-chain write) ──────────────────────
+    tx_hash: Optional[str] = None
+    record_id: Optional[int] = None
+    block_number: Optional[int] = None
+    chain_id: Optional[int] = None
+    contract_address: Optional[str] = None
     red_flags: list[str] = []
 
 
 class HealthResponse(BaseModel):
     status: str
     agent_ready: bool
+
+
+class AuditRecord(BaseModel):
+    """A single on-chain verification record."""
+    id: int
+    project_name: str
+    company_name: str
+    trust_score: int
+    risk_level: str
+    ipfs_hash: str = ""
+    verifier: str
+    timestamp: int
+
+
+class AuditsResponse(BaseModel):
+    """Paginated list of on-chain audit records."""
+    total: int
+    records: List[AuditRecord]

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: proof-of-carbon-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker api.main:app
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GEE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GEE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: RPC_URL
+        value: "https://polygon-amoy.g.alchemy.com/v2/your-api-key"
+      - key: PRIVATE_KEY
+        sync: false
+      - key: CONTRACT_ADDRESS
+        sync: false
