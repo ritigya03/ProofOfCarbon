@@ -16,7 +16,7 @@ const agentSteps = [
   { icon: ShieldCheck,  name: "Verifier Agent",           duration: 1000 },
 ];
 
-const API_URL = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 // ── Collapsible section wrapper ──────────────────────────────────────────────
 const CollapsibleSection = ({

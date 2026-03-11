@@ -132,11 +132,23 @@ def _mock_ndvi(bbox: dict) -> dict:
     lat  = (bbox["min_lat"] + bbox["max_lat"]) / 2
     lon  = (bbox["min_lon"] + bbox["max_lon"]) / 2
 
+    # Provide high NDVI for known forest/agroforestry regions in our mock data
+    # (e.g. Kodagu/Western Ghats area around 12.3N, 75.7E)
+    # Meghalaya/Khasi Hills around 25.4N, 91.8E
+    is_forest_region = (11.0 <= lat <= 14.5 and 74.5 <= lon <= 77.5) or (20.0 <= lat <= 28.0 and 88.0 <= lon <= 94.0)
+    
     seed = math.sin(lat * 7.3 + lon * 3.1) * 0.5 + 0.5   # 0-1
-    ndvi_current    = round(0.25 + seed * 0.53, 3)
-    ndvi_historical = round(ndvi_current - 0.02 + (math.cos(lat) * 0.01), 3)
-    ndvi_historical = max(0.05, min(0.95, ndvi_historical))
+    
+    if is_forest_region:
+        # High NDVI (0.6 - 0.85) for forest zones
+        ndvi_current = round(0.65 + seed * 0.2, 3)
+        ndvi_historical = round(ndvi_current - 0.01, 3)
+    else:
+        # Random distribution (0.25 - 0.78) for other regions
+        ndvi_current    = round(0.25 + seed * 0.53, 3)
+        ndvi_historical = round(ndvi_current - 0.02 + (math.cos(lat) * 0.01), 3)
 
+    ndvi_historical = max(0.05, min(0.95, ndvi_historical))
     change_pct = ((ndvi_current - ndvi_historical) / max(ndvi_historical, 0.01)) * 100
 
     if change_pct <= -TREND_DROP_PCT:

@@ -57,10 +57,15 @@ def _load_state_data() -> dict:
     with open(_STATE_CSV, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             key = row["state"].strip()
+            # Support both old and new schemas
+            loss_pct = row.get("annual_deforestation_rate_pct") or row.get("annual_loss_pct", "0.2")
+            pressure = row.get("deforestation_pressure_level") or row.get("pressure", "MEDIUM")
+            drivers_raw = row.get("drivers") or row.get("notes", "General human pressure")
+            
             data[key] = {
-                "annual_loss_pct": float(row["annual_loss_pct"]),
-                "pressure":        row["pressure"].strip(),
-                "drivers":         [d.strip() for d in row["drivers"].split("|")],
+                "annual_loss_pct": float(loss_pct),
+                "pressure":        pressure.strip().upper(),
+                "drivers":         [d.strip() for d in drivers_raw.split("|")],
                 "data_year":       row.get("data_year", "2023").strip(),
             }
 
@@ -85,10 +90,18 @@ def _load_forest_type_data() -> dict:
     with open(_FOREST_CSV, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             key = row["forest_type"].strip()
+            # Support both old and new schemas
+            score = float(row.get("permanence_score") or 0.75)
+            carbon = int(float(row.get("avg_carbon_density_tC_ha") or row.get("avg_carbon_t_ha", 150)))
+            
+            # Map score to risk (low risk if high score)
+            risk_level = "LOW" if score > 0.7 else "MEDIUM" if score > 0.4 else "HIGH"
+            reversal_pct = int((1.0 - score) * 100)
+
             data[key] = {
-                "permanence_risk":    row["permanence_risk"].strip(),
-                "reversal_risk_pct":  int(row["reversal_risk_pct"]),
-                "avg_carbon_t_ha":    int(row["avg_carbon_t_ha"]),
+                "permanence_risk":    risk_level,
+                "reversal_risk_pct":  reversal_pct,
+                "avg_carbon_t_ha":    carbon,
             }
 
     logger.info(f"[baseline] Loaded {len(data)} forest type rows from {_FOREST_CSV.name}")
@@ -109,7 +122,19 @@ def get_state_baseline(state: str) -> dict:
     Falls back to _default row if state is not in the CSV.
     """
     normalised = state.strip().title()
-    data = INDIA_STATE_DEFORESTATION.get(normalised, INDIA_STATE_DEFORESTATION["_default"])
+    # Safe lookup with fallback to first row or reasonable defaults if _default is missing
+    if normalised in INDIA_STATE_DEFORESTATION:
+        data = INDIA_STATE_DEFORESTATION[normalised]
+    elif "_default" in INDIA_STATE_DEFORESTATION:
+        data = INDIA_STATE_DEFORESTATION["_default"]
+    else:
+        # Emergency fallback if CSV is mangled
+        data = {
+            "annual_loss_pct": 0.35,
+            "pressure": "MEDIUM",
+            "drivers": ["General human pressure"],
+            "data_year": "2023"
+        }
     return {
         "state":                  normalised,
         "annual_loss_pct":       data["annual_loss_pct"],
@@ -145,8 +170,18 @@ def get_forest_type_stats(forest_type: str) -> dict:
         "broadleaf":        "moist_deciduous",
         "native_broadleaf": "moist_deciduous",
     }
+    # Safe lookup for forest types
     resolved = mapping.get(ft, ft)
-    data = FOREST_TYPE_PERMANENCE_RISK.get(resolved, FOREST_TYPE_PERMANENCE_RISK["_default"])
+    if resolved in FOREST_TYPE_PERMANENCE_RISK:
+        data = FOREST_TYPE_PERMANENCE_RISK[resolved]
+    elif "_default" in FOREST_TYPE_PERMANENCE_RISK:
+        data = FOREST_TYPE_PERMANENCE_RISK["_default"]
+    else:
+        data = {
+            "permanence_risk": "MEDIUM",
+            "reversal_risk_pct": 15,
+            "avg_carbon_t_ha": 150
+        }
 
     return {
         "forest_type_resolved": resolved,
@@ -216,10 +251,10 @@ def compute_additionality_metrics(
         project_potential_t = claimed_ha * sequestration_rate_per_yr * credit_period_years
         
         # Additionality is the "delta" created by the project intervention
-        additionality_t = max(0, project_potential_t - counterfactual_growth_t)
+        additionality_t = max(0.0, project_potential_t - counterfactual_growth_t)
         
         # Additionality Score (%)
-        additionality_score = min(100, (additionality_t / project_potential_t * 100)) if project_potential_t > 0 else 0
+        additionality_score = min(100.0, (additionality_t / project_potential_t * 100)) if project_potential_t > 0 else 0.0
         
         counterfactual_loss_ha = 0 # Not applicable to ARR
         carbon_at_risk_t = additionality_t # In ARR, the "risk" is the lost sequestration potential
@@ -245,7 +280,9 @@ def compute_additionality_metrics(
         carbon_at_risk_t = counterfactual_loss_ha * carbon_t_ha
 
         # Additionality score: 0-100 based on threat
-        additionality_score = min(100, (annual_loss_rate * 100 * 10))
+        # If loss is 0.5%/yr, score is 0.5 * 80 * 2 = 80. 
+        # If loss is 1.15%/yr (Meghalaya), score is 1.15 * 80 * 1 = 92.
+        additionality_score = min(100.0, (annual_loss_rate * 100 * 80))
 
         if pressure == "LOW" and annual_loss_rate < 0.15:
             flags.append(

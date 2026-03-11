@@ -10,9 +10,9 @@ const pillars = [
   },
   {
     icon: Lock,
-    title: "Federated Learning",
-    subtitle: "Privacy-preserving intelligence",
-    description: "Fraud detection models learn across organizations without exposing proprietary data, building collective intelligence against greenwashing.",
+    title: "Machine Learning",
+    subtitle: "Intelligence at Scale",
+    description: "Advanced models analyze historical project data and satellite indicators to detect fraud patterns and verify carbon sequestration claims.",
   },
   {
     icon: LinkIcon,

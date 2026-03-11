@@ -71,8 +71,8 @@ const Results = () => {
   const [expandedAgent, setExpandedAgent] = useState<number | null>(null);
 
   // ── Stage 1: Spatial ──────────────────────────────────────────────────────
-  const trustScore  = apiResult ? Math.round(apiResult.trust_score ?? 0) : 82;
-  const riskLevel   = apiResult?.risk_level ?? "MEDIUM";
+  const trustScore  = apiResult ? Math.round(apiResult.trust_score ?? 0) : 0;
+  const riskLevel   = apiResult?.risk_level ?? "UNKNOWN";
   const summary     = apiResult?.summary ?? "";
   const allFlags    = apiResult?.all_flags ?? [];
   const claimedHa   = apiResult?.claimed_hectares;
@@ -98,6 +98,41 @@ const Results = () => {
   const satFlags       = apiResult?.satellite_flags ?? [];
   const ndviDataSource = apiResult?.ndvi_data_source;
   const hasSatData     = ndviCurrent != null;
+
+  if (!apiResult) {
+    return (
+      <main className="min-h-screen">
+        <Navbar />
+        <div className="container mx-auto px-6 pt-28 pb-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto max-w-2xl text-center"
+          >
+            <div className="mb-8 inline-flex rounded-full bg-secondary/30 p-6">
+              <SearchCheck className="h-12 w-12 text-muted-foreground/50" />
+            </div>
+            <h1 className="text-3xl font-bold md:text-4xl">
+              No <span className="text-gradient-green">Results</span> Found
+            </h1>
+            <p className="mt-4 text-muted-foreground">
+              You haven't analyzed a project yet. Upload a KMZ file and project description to see verification results.
+            </p>
+            <div className="mt-10">
+              <Link
+                to="/verify"
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-8 py-4 text-sm font-semibold text-accent-foreground transition-all hover:brightness-110 glow-orange"
+              >
+                <SearchCheck className="h-4 w-4" />
+                Analyze a Project
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+        <Footer />
+      </main>
+    );
+  }
 
   // ── agentOutputs defined INSIDE component so all variables are in scope ───
   const agentOutputs = [
@@ -313,7 +348,7 @@ const Results = () => {
                         ? "border-trust-green-glow/40 text-trust-green-glow bg-trust-green-glow/10"
                         : "border-yellow-500/40 text-yellow-400 bg-yellow-500/10"
                     }`}>
-                      {ndviDataSource === "MODIS_MOD13Q1" ? "Live · MODIS/061" : "Mock Data"}
+                      {ndviDataSource === "MODIS_MOD13Q1" ? "Live · MODIS/061" : "Satellite Reference"}
                     </span>
                   )}
                   {satRiskLevel && (

@@ -315,13 +315,33 @@ def load_reference(bbox: dict, layer: str = "forest_cover") -> gpd.GeoDataFrame:
     aoi_bbox_tuple = (w, s, e, n)
     
     logger.info(f"Performing precision AOI fetch for states: {state_keys}")
-    aoi_gdf = _fetch_from_overpass(f"aoi_{state_keys[0]}", aoi_bbox_tuple)
     
-    if aoi_gdf is not None and not aoi_gdf.empty:
-        _mem_cache[precision_key] = aoi_gdf
-        return aoi_gdf
+    all_gdfs = []
+    for s_key in state_keys:
+        state_gdf = _fetch_from_overpass(f"aoi_{s_key}", aoi_bbox_tuple)
+        if state_gdf is not None and not state_gdf.empty:
+            all_gdfs.append(state_gdf)
+    
+    if all_gdfs:
+        combined_gdf = gpd.GeoDataFrame(gpd.pd.concat(all_gdfs, ignore_index=True), crs="EPSG:4326")
+        _mem_cache[precision_key] = combined_gdf
+        return combined_gdf
 
-    logger.error(f"Precision AOI fetch failed for detected states: {state_keys}")
+    logger.warning(f"Precision AOI fetch failed for detected states: {state_keys}. Trying local fallback...")
+
+    # ── Tier 3: Local File Fallback (PoC/Dev Mode) ───────────
+    local_path = os.getenv("FOREST_REFERENCE_PATH", "data/reference/india_forest_cover.geojson")
+    if os.path.exists(local_path):
+        logger.info(f"[local-fallback] PostGIS/Overpass unavailable, using {local_path}")
+        try:
+            bbox_tuple = (bbox["min_lon"], bbox["min_lat"], bbox["max_lon"], bbox["max_lat"])
+            gdf = gpd.read_file(local_path, bbox=box(*bbox_tuple))
+            if not gdf.empty:
+                _mem_cache[precision_key] = gdf
+                return gdf
+        except Exception as e:
+            logger.warning(f"Local GeoJSON fallback failed: {e}")
+
     return _empty_gdf()
 
 
@@ -439,9 +459,15 @@ def check_protected_area_overlap(
     claimed_geom = company_proj.geometry.make_valid()
     pa_geom = protected_proj.geometry.make_valid()
 
-    claimed_union = unary_union(claimed_geom)
-    pa_union = unary_union(pa_geom)
-    overlap = claimed_union.intersection(pa_union)
+    claimed_union = unary_union(claimed_geom).buffer(0)
+    pa_union = unary_union(pa_geom).buffer(0)
+    
+    try:
+        overlap = claimed_union.intersection(pa_union)
+    except Exception as e:
+        logger.warning(f"Intersection failed on primary attempt: {e}. Trying fallback...")
+        # Emergency fallback: simplify slightly
+        overlap = claimed_union.simplify(0.00001).intersection(pa_union.simplify(0.00001))
 
     overlap_ha = overlap.area / 10_000
     overlap_pct = (

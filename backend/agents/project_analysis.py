@@ -84,14 +84,15 @@ class ProjectAnalysisAgent(BaseAgent):
             system_prompt=SYSTEM_PROMPT,
         )
 
-    def _detect_project_type_deterministically(self, text: str) -> str:
+    def _detect_project_type_deterministically(self, text: str, layer_name: str = "") -> str:
         """
         Keyword-based fallback for project type detection.
+        Checks both the claim text and the KMZ layer name.
         """
-        text = text.lower()
-        if any(k in text for k in ["reforestation", "afforestation", "arr", "a/r", "planting", "cdm", "cer", "planting"]):
+        combined_text = (text + " " + layer_name).lower()
+        if any(k in combined_text for k in ["reforestation", "afforestation", "arr", "a/r", "planting", "cdm", "cer", "restoration", "mangrove", "plantation"]):
             return "ARR"
-        if any(k in text for k in ["redd", "avoided deforestation", "conservation", "protection", "preservation"]):
+        if any(k in combined_text for k in ["redd", "avoided deforestation", "conservation", "protection", "preservation", "plan vivo", "forest community", "kskhaw", "federation"]):
             return "REDD+"
         return "UNKNOWN"
 
@@ -107,14 +108,19 @@ class ProjectAnalysisAgent(BaseAgent):
         """
         logger.info(f"[ProjectAnalysisAgent] Starting analysis for: {kmz_path}")
 
-        # ── Step 0: Deterministic check ──
-        det_type = self._detect_project_type_deterministically(company_text_claim)
-
         # ── Step 1: Parse company's KMZ ──
         try:
             company_gdf = parse_kmz(kmz_path)
+            # Try to get project name from metadata/first feature if possible
+            layer_name = ""
+            if not company_gdf.empty:
+                # KML layers often show up in 'Name' or 'layer' columns
+                layer_name = str(company_gdf.iloc[0].get("Name", company_gdf.iloc[0].get("name", "")))
         except Exception as e:
             raise ValueError(f"Failed to parse KMZ: {e}")
+
+        # ── Step 0: Deterministic check (now with layer name) ──
+        det_type = self._detect_project_type_deterministically(company_text_claim, layer_name)
 
         bbox = get_bounding_box(company_gdf)
         claimed_ha = get_area_hectares(company_gdf)

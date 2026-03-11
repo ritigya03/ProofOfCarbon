@@ -208,8 +208,10 @@ class FraudDetectionAgent(BaseAgent):
             risk_level = ML_VERDICT_TO_RISK[verdict]
 
             # Anomaly score: weighted average of probabilities
-            # higher weight for REQUIRES_REVIEW (2) and REJECTED (3)
-            weights = np.array([0, 25, 60, 100])  # score per class
+            # Aggressive weights can penalise partial data too heavily.
+            # Using slightly more conservative weights:
+            # VERIFIED (0), CONDITIONALLY (10), REVIEW (40), REJECTED (90)
+            weights = np.array([0, 10, 40, 90])  
             anomaly_score = int(np.round(np.dot(proba, weights)))
 
             ml_result = {

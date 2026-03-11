@@ -18,14 +18,14 @@ const layers = [
   },
   {
     icon: Lock,
-    title: "Federated Learning Layer",
+    title: "Machine Learning Layer",
     color: "text-highlight-orange",
     bg: "bg-accent/10",
     items: [
-      "Privacy-preserving model training across organizations",
-      "Fraud pattern detection without exposing proprietary data",
-      "Differential privacy guarantees for sensitive datasets",
-      "Continuously improving detection with decentralized intelligence",
+      "Fraud pattern detection across historical carbon data",
+      "Automated risk scoring for project documentation",
+      "Satellite-based vegetation and biomass analysis models",
+      "Continuous learning from verified carbon project outcomes",
     ],
   },
   {
@@ -92,13 +92,13 @@ const Architecture = () => (
             </div>
             <span className="text-muted-foreground/50 text-lg">↓</span>
 
-            {/* Federated */}
+            {/* Machine Learning Layer */}
             <div className="w-full rounded-lg border border-accent/30 bg-accent/5 px-6 py-4">
               <div className="flex items-center gap-2 mb-2">
                 <Lock className="h-4 w-4 text-highlight-orange" />
-                <span className="text-sm font-semibold">Federated Learning Layer</span>
+                <span className="text-sm font-semibold">Machine Learning Layer</span>
               </div>
-              <span className="text-xs text-muted-foreground">Cross-org fraud intelligence • Differential privacy • Decentralized model updates</span>
+              <span className="text-xs text-muted-foreground">Historical fraud patterns • Risk assessment models • Biomass analysis • Continuous improvement</span>
             </div>
             <span className="text-muted-foreground/50 text-lg">↓</span>
 

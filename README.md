@@ -52,15 +52,15 @@ ProofOfCarbon employs a modular multi-agent architecture:
 
 ---
 
-### 2. Federated Learning (Conceptual Layer)
+### 2. Machine Learning (Conceptual Layer)
 
-To preserve privacy while improving fraud detection, ProofOfCarbon integrates **Federated Learning (FL)** at the architecture level:
+To improve fraud detection, ProofOfCarbon integrates **Machine Learning (ML)** at the architecture level:
 
-- Carbon registries train fraud detection models locally on private data
-- Only learned fraud patterns are shared globally
-- No raw project data is ever centralized
+- Carbon registries train fraud detection models on historical project data
+- Learned fraud patterns are used to identify suspicious claims across the ecosystem
+- Continuous improvement of detection accuracy through shared intelligence
 
-This enables collaborative intelligence without compromising confidentiality.
+This enables collaborative intelligence while maintaining a focus on project integrity.
 
 ---
 
@@ -95,7 +95,7 @@ This creates a **tamper-proof audit trail** for carbon credit verification.
 - Ethers.js or Viem
 
 ### Privacy & Trust
-- Federated Learning (architecture-level integration)
+- Machine Learning (architecture-level integration)
 - On-chain verification hashes (no sensitive data stored)
 
 ---
@@ -129,14 +129,14 @@ Public, Immutable Audit Record
 ## ⚠️ Disclaimer
 
 This project is a prototype built for demonstration and research purposes.  
-Satellite analysis and federated learning components are architecturally correct but may be mocked or simulated.
+Satellite analysis and machine learning components are architecturally correct but may be mocked or simulated.
 
 ---
 
 ## 📌 Future Work
 
 - Real-time satellite data integration
-- Live federated learning across registries
+- Live machine learning across registries
 - Knowledge graph visualization for fraud patterns
 - DAO-based governance for verification standards
 
