@@ -156,7 +156,7 @@ const Verify = () => {
       const form = new FormData();
       form.append("kmz_file", kmzFile, kmzFile.name);
       form.append("company_claim", fullClaim);
-      const res = await fetch(`${API_URL}/analyze`, { method: "POST", body: form });
+      const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: form });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
