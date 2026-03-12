@@ -39,10 +39,12 @@ app = FastAPI(
 # Configure CORS origins from environment variable
 allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
 allowed_origins = [o.strip() for o in allowed_origins_str.split(",")]
+logger.info(f"CORS origins configured: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -53,6 +55,19 @@ satellite_agent: SatelliteEvidenceAgent | None = None
 baseline_agent:  HistoricalBaselineAgent| None = None
 fraud_agent:     FraudDetectionAgent    | None = None
 verifier_agent:  VerifierAgent          | None = None
+
+
+# Root route for quick connectivity / health check
+@app.get("/")
+def home():
+    """Root route for discovery and CORS verification."""
+    return {
+        "status": "online",
+        "service": "ProofOfCarbon API",
+        "message": "Verify carbon projects at /analyze",
+        "allowed_origins": allowed_origins,
+        "environment": os.getenv("RENDER", "local")
+    }
 
 
 @app.on_event("startup")
