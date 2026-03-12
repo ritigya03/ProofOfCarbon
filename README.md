@@ -152,7 +152,6 @@ During verification, the system clips the state-level data to the specific proje
 ## ⚠️ Disclaimer
 
 This project is a prototype built for demonstration and research purposes.  
-Satellite analysis and machine learning components are architecturally correct but may be mocked or simulated.
 
 ---
 
