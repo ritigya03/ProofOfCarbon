@@ -155,8 +155,6 @@ This project is a prototype built for demonstration and research purposes.
 
 ---
 
----
-
 ## 🚀 Getting Started
 
 Follow these steps to set up ProofOfCarbon on your local machine.
